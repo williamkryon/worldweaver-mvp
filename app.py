@@ -6,6 +6,7 @@ from io import BytesIO
 from PIL import Image
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+import re
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -39,18 +40,6 @@ class World(Base):
 Base.metadata.create_all(bind=engine)
 
 # ---------- 辅助函数：调用 LLM ----------
-# def call_gpt_system(system_prompt, user_prompt, max_tokens=500):
-#     # 这里使用 gpt-4o 或 gpt-4-turbo 在你的 key 支持下，这里示例使用 gpt-3.5-turbo 兼容写法
-#     resp = openai.ChatCompletion.create(
-#         model="gpt-4o-mini" if "gpt-4o-mini" in openai.Model.list() else "gpt-3.5-turbo",
-#         messages=[
-#             {"role":"system","content":system_prompt},
-#             {"role":"user","content":user_prompt}
-#         ],
-#         max_tokens=max_tokens,
-#         temperature=0.8,
-#     )
-#     return resp["choices"][0]["message"]["content"].strip()
 
 def call_gpt_system(system_prompt, user_prompt, max_tokens=600):
     try:
@@ -82,6 +71,15 @@ Provide brief creative notes after JSON.
 
 DM_SYSTEM = "You are an imaginative RPG Dungeon Master. Keep responses short and reference the world's facts."
 
+
+# 初始化 session_state
+if "adventure" not in st.session_state:
+    st.session_state.adventure = {
+        "history": [],  # 每回合剧情
+        "round": 0,
+        "options": []   # 当前回合选项
+    }
+
 # ---------- UI ----------
 st.set_page_config(page_title="WorldWeaver MVP", layout="wide")
 st.title("WorldWeaver — MVP（构建 / 玩耍 / 导出画册）")
@@ -90,7 +88,21 @@ st.markdown("输入一个创意，让 AI 帮你生成一个小世界，然后可
 # 左侧：创建世界
 with st.sidebar:
     st.header("1) 创建新世界")
-    idea = st.text_area("一句话概括你的世界（示例：被海水淹没的蒸汽城市）", height=80)
+    idea = st.text_area(
+        "一句话概括你的世界（示例：被海水淹没的蒸汽城市）",
+        height=80
+    )
+
+    # 检测语言
+    from langdetect import detect
+    idea_stripped = idea.strip()
+    if idea_stripped:
+        try:
+            lang = detect(idea_stripped)
+        except:
+            lang = "zh"  # 默认中文，如果检测失败
+    else:
+        lang = "zh"  # 没输入内容时默认中文
     world_name = st.text_input("给世界起个名字（英语优先）", value="MyWorld")
     if st.button("生成世界"):
         if not idea.strip():
@@ -100,7 +112,6 @@ with st.sidebar:
                 user_prompt = WORLD_GEN_USER.format(idea=idea)
                 out = call_gpt_system(WORLD_GEN_SYSTEM, user_prompt, max_tokens=600)
                 # 尝试从文本中提取第一个 JSON 块
-                import re
                 m = re.search(r"(\{[\s\S]*\})", out)
                 json_text = m.group(1) if m else None
                 if not json_text:
@@ -134,83 +145,132 @@ if sel and sel != "-- 新建 --":
 if world_obj:
     st.subheader(world_obj.get("title", sel))
     st.write("**简介**：", world_obj.get("summary",""))
+
     st.write("**地点**：")
     for loc in world_obj.get("3_locations", []):
-        st.write("-", loc)
+        st.write(f"- {loc.get('name','')} — {loc.get('description','')}")
+
     st.write("**主要角色**：")
     for ch in world_obj.get("3_characters", []):
-        st.write("-", f"{ch.get('name')} — {ch.get('role')} — {ch.get('short_desc')}")
+        st.write(f"- {ch.get('name','')} — {ch.get('role','')} — {ch.get('short_desc','')}")
+
     st.write("**初始钩子**：", world_obj.get("initial_hook",""))
 
     # 交互冒险：简易对话轮次
     st.markdown("---")
-    st.subheader("3) 进入冒险（一次短篇）")
-    if "session_history" not in st.session_state:
-        st.session_state.session_history = []
-    player_input = st.text_input("你要做什么？（例如：我去港口调查白色号角）")
-    if st.button("行动"):
-        if not player_input.strip():
-            st.warning("写点啥行动吧。")
-        else:
-            # 构造 prompt：把世界关键点带入
-            world_text = json.dumps(world_obj, ensure_ascii=False)
-            dm_prompt = f"""World facts: {world_text}
+    st.subheader("3) 进入冒险（多回合）")
 
-Player action: {player_input}
-
-Respond as a Dungeon Master. Keep it immersive and update what happened. Also produce a short 'log' entry JSON with keys: event_summary, new_characters (list), new_locations (list)."""
-            with st.spinner("AI 生成中……"):
-                dm_resp = call_gpt_system(DM_SYSTEM, dm_prompt, max_tokens=400)
-                st.markdown("**DM:**")
-                st.write(dm_resp)
-                # 把对话存到 session_state
-                st.session_state.session_history.append({"player":player_input,"dm":dm_resp})
     # 展示历史
-    if st.session_state.session_history:
-        st.subheader("冒险记录")
-        for i, it in enumerate(st.session_state.session_history[-10:]):
-            st.markdown(f"**回合 {i+1}**")
-            st.write("玩家：", it["player"])
-            st.write("DM：", it["dm"])
+    for i, it in enumerate(st.session_state.adventure["history"][-10:]):
+        st.markdown(f"**回合 {i+1}**")
+        st.write("玩家：", it["player"])
+        st.write("DM：", it["dm"])
 
-    # 生成总结与画册
-    st.markdown("---")
-    st.subheader("4) 生成冒险总结与画册")
-    if st.button("生成冒险总结（文本）"):
-        history_text = "\n".join([f"Player: {h['player']}\nDM: {h['dm']}" for h in st.session_state.session_history])
-        summary_prompt = f"请以英文为主，总结以下冒险为一段叙述风格的冒险回顾，突出情节要点和关键角色：\n\n{history_text}"
-        with st.spinner("生成总结中……"):
-            summary = call_gpt_system("You are an expert RPG chronicler who writes evocative summaries.", summary_prompt, max_tokens=400)
-            st.text_area("冒险总结", value=summary, height=200)
+    # 第一次点击生成开场剧情
+    if st.session_state.adventure["round"] == 0:
+        if st.button("开始冒险"):
+            prompt = f"""World facts: {json.dumps(world_obj, ensure_ascii=False)}
+    Generate an opening scene for a short adventure. Provide 3 action options formatted like:
+    1. xxx
+    2. xxx
+    3. xxx"""
+            with st.spinner("AI 生成中……"):
+                dm_resp = call_gpt_system(DM_SYSTEM, prompt, max_tokens=400)
+            # 提取选项
+            options = re.findall(r"\d\.\s(.+)", dm_resp)
+            if not options:
+                options = ["继续探索", "调查角色", "前往未知地点"]  # 兜底选项
+            st.session_state.adventure["history"].append({"player":"(start)", "dm":dm_resp})
+            st.session_state.adventure["options"] = options
+            st.session_state.adventure["round"] += 1
 
-    if st.button("生成并下载画册 (PDF)"):
-        # 简易画册：封面 + 世界 summary + 并把图片占位
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=A4)
-        w, h = A4
-        c.setFont("Helvetica-Bold", 20)
-        c.drawCentredString(w/2, h-80, world_obj.get("title","Untitled World"))
-        c.setFont("Helvetica", 12)
-        c.drawString(50, h-120, "Summary:")
-        c.drawString(50, h-140, world_obj.get("summary",""))
+    # 显示当前选项
+    if st.session_state.adventure["options"]:
+        st.write("选择你的行动：")
+        for idx, opt in enumerate(st.session_state.adventure["options"]):
+            if st.button(opt):
+                player_choice = opt
+                last_dm = st.session_state.adventure["history"][-1]["dm"]
+                # 生成下一回合剧情
+                prompt = f"""Use the language of this world ({lang}): World facts: {json.dumps(world_obj, ensure_ascii=False)}
+    Previous story: {last_dm}
+    Player chose: {player_choice}
+    Generate the next scene with 3 action options formatted like:
+    1. xxx
+    2. xxx
+    3. xxx"""
+                with st.spinner("AI 生成中……"):
+                    dm_resp = call_gpt_system(DM_SYSTEM, prompt, max_tokens=400)
+                options = re.findall(r"\d\.\s(.+)", dm_resp)
+                if not options:
+                    options = ["继续探索", "调查角色", "前往未知地点"]
+                st.session_state.adventure["history"].append({"player":player_choice, "dm":dm_resp})
+                st.session_state.adventure["options"] = options
+                st.session_state.adventure["round"] += 1
 
-        # 把冒险记录加入
-        c.drawString(50, h-200, "Adventure Log:")
-        y = h-220
-        for it in st.session_state.session_history[-10:]:
-            txt = f"Player: {it['player']}"
-            c.drawString(55, y, txt[:80])
-            y -= 14
-            txt2 = f"DM: {it['dm']}"
-            c.drawString(65, y, txt2[:80])
-            y -= 18
-            if y < 100:
-                c.showPage()
-                y = h-80
-        c.showPage()
-        c.save()
-        buffer.seek(0)
-        st.download_button("下载画册 PDF", data=buffer, file_name=f"{world_obj.get('title','world')}_book.pdf", mime="application/pdf")
+# ---------- 展示历史 ----------
+if st.session_state.adventure["history"]:
+    st.subheader("冒险记录")
+    for i, it in enumerate(st.session_state.adventure["history"][-10:]):
+        st.markdown(f"**回合 {i+1}**")
+        st.write("玩家：", it["player"])
+        st.write("DM：", it["dm"])
+
+# ---------- 生成总结与画册 ----------
+st.markdown("---")
+st.subheader("4) 生成冒险总结与画册")
+
+if st.button("生成冒险总结（文本）"):
+    history_text = "\n".join([f"Player: {h['player']}\nDM: {h['dm']}" for h in st.session_state.adventure["history"]])
+    summary_prompt = f"请以英文为主，总结以下冒险为一段叙述风格的冒险回顾，突出情节要点和关键角色：\n\n{history_text}"
+    with st.spinner("生成总结中……"):
+        summary = call_gpt_system("You are an expert RPG chronicler who writes evocative summaries.", summary_prompt, max_tokens=400)
+    st.text_area("冒险总结", value=summary, height=200)
+
+if st.button("生成并下载画册 (PDF)"):
+    from reportlab.lib.utils import simpleSplit
+
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    w, h = A4
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(w/2, h-80, world_obj.get("title","Untitled World"))
+    c.setFont("Helvetica", 12)
+
+    # 世界 summary
+    c.drawString(50, h-120, "Summary:")
+    summary_lines = simpleSplit(world_obj.get("summary",""), "Helvetica", 12, w-100)
+    y = h-140
+    for line in summary_lines:
+        c.drawString(50, y, line)
+        y -= 14
+
+    # 冒险记录
+    c.drawString(50, y-20, "Adventure Log:")
+    y -= 40
+    for it in st.session_state.adventure["history"][-10:]:
+        for prefix, txt in [("Player: ", it["player"]), ("DM: ", it["dm"])]:
+            lines = simpleSplit(txt, "Helvetica", 12, w-100)
+            for line in lines:
+                if y < 50:
+                    c.showPage()
+                    c.setFont("Helvetica", 12)
+                    y = h-50
+                c.drawString(50, y, prefix + line)
+                prefix = ""  # 只有第一行加前缀
+                y -= 14
+        y -= 10
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    st.download_button(
+        "下载画册 PDF",
+        data=buffer,
+        file_name=f"{world_obj.get('title','world')}_book.pdf",
+        mime="application/pdf"
+    )
+
 
 else:
     st.info("先在左侧创建一个新世界（Create），然后回到这里选择。")

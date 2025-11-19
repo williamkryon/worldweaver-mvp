@@ -225,8 +225,6 @@ if "adventure" not in st.session_state:
 st.set_page_config(page_title="WorldWeaver MVP", layout="wide")
 
 # ---------- 侧边栏：语言选择 + 创建世界 ----------
-from langdetect import detect
-
 with st.sidebar:
     # UI 语言选择
     lang_ui = st.selectbox(
@@ -242,58 +240,50 @@ with st.sidebar:
         height=80
     )
 
-    # 检测“世界内容语言”（用于 GPT 输出语言）
-    idea_stripped = idea.strip()
-    if idea_stripped:
-        try:
-            content_lang = detect(idea_stripped)
-        except Exception:
-            content_lang = "zh"  # 默认中文
-    else:
-        content_lang = "zh"
-
     world_name = st.text_input(TEXT["world_name"][lang_ui], value="MyWorld")
-
+    
     if st.button(TEXT["button_generate_world"][lang_ui]):
         if not idea.strip():
             st.error(TEXT["generate_world_need_idea"][lang_ui])
-    else:
-        with st.spinner(TEXT["generate_world_spinner"][lang_ui]):
-            user_prompt = WORLD_GEN_USER.format(idea=idea, lang=content_lang)
-            out = call_gpt_system(WORLD_GEN_SYSTEM, user_prompt, max_tokens=600)
+        else:
+            with st.spinner(TEXT["generate_world_spinner"][lang_ui]):
 
-            # 提取 JSON
-            m = re.search(r"(\{[\s\S]*\})", out)
-            json_text = m.group(1) if m else None
-            if not json_text:
-                data = {"title": world_name, "summary": out}
-            else:
-                try:
-                    data = json.loads(json_text)
-                except Exception:
+                user_prompt = WORLD_GEN_USER.format(idea=idea, lang=lang_ui)   
+                out = call_gpt_system(WORLD_GEN_SYSTEM, user_prompt, max_tokens=600)
+
+                # 提取 JSON
+                m = re.search(r"(\{[\s\S]*\})", out)
+                json_text = m.group(1) if m else None
+
+                if not json_text:
                     data = {"title": world_name, "summary": out}
+                else:
+                    try:
+                        data = json.loads(json_text)
+                    except Exception:
+                        data = {"title": world_name, "summary": out}
 
-            # --- 新增：同名覆盖 ---
-            session = SessionLocal()
-            existing = session.query(World).filter_by(name=world_name).first()
+                # --- 同名覆盖 ---
+                session = SessionLocal()
+                existing = session.query(World).filter_by(name=world_name).first()
 
-            if existing:
-                existing.data = json.dumps(data, ensure_ascii=False)
-                existing.created_at = time.time()
+                if existing:
+                    existing.data = json.dumps(data, ensure_ascii=False)
+                    existing.created_at = time.time()
+                    
+                else:
+                    new_world = World(
+                        name=world_name,
+                        data=json.dumps(data, ensure_ascii=False),
+                        created_at=time.time()
+                    )
+                    session.add(new_world)
+                    
                 session.commit()
-            else:
-                new_world = World(
-                    name=world_name,
-                    data=json.dumps(data, ensure_ascii=False),
-                    created_at=time.time()
-                )
-                session.add(new_world)
-                session.commit()
+                session.close()
 
-            session.close()
-
-            st.success("世界已生成（同名已覆盖）！" if lang_ui == "中文" 
-                       else "World generated (existing world overwritten)!")
+                st.success("世界已生成（同名已覆盖）！" if lang_ui == "中文" 
+                        else "World generated (existing world overwritten)!")
 
 
 # ---------- 主区域：标题 & 简介 ----------
@@ -329,7 +319,7 @@ if world_obj:
         session.commit()
         session.close()
         st.success("已删除。" if lang_ui == "中文" else "Deleted.")
-        st.experimental_rerun()
+        st.rerun()
 
     # 简介
     st.markdown(f"**{TEXT['world_summary'][lang_ui]}**")
@@ -380,9 +370,10 @@ Generate an opening scene for a short adventure. Provide 3 action options format
             # 提取选项
             options = re.findall(r"\d\.\s(.+)", dm_resp)
             if not options:
-                options = ["继续探索", "调查角色", "前往未知地点"] if content_lang.startswith("zh") else [
-                    "Keep exploring", "Investigate a character", "Head to an unknown place"
-                ]
+                if lang_ui == "中文":
+                    options = ["继续探索", "调查角色", "前往未知地点"]
+                else:
+                    options = ["Keep exploring", "Investigate a character", "Head to an unknown place"]
             st.session_state.adventure["history"].append({"player": "(start)", "dm": dm_resp})
             st.session_state.adventure["options"] = options
             st.session_state.adventure["round"] += 1
@@ -395,18 +386,18 @@ Generate an opening scene for a short adventure. Provide 3 action options format
                 player_choice = opt
                 last_dm = st.session_state.adventure["history"][-1]["dm"]
 
-                prompt = f"""Use the language of this world ({content_lang}): World facts: {json.dumps(world_obj, ensure_ascii=False)}
+                prompt = f"""Use {lang_ui}: World facts: {json.dumps(world_obj, ensure_ascii=False)}
 Previous story: {last_dm}
 Player chose: {player_choice}
 Generate the next scene with 3 action options formatted like:
 1. xxx
 2. xxx
 3. xxx"""
-                with st.spinner("AI 生成中……" if content_lang.startswith("zh") else "AI thinking…"):
+                with st.spinner("AI 生成中……" if lang_ui == "中文" else "AI thinking…"):
                     dm_resp = call_gpt_system(DM_SYSTEM, prompt, max_tokens=400)
                 options = re.findall(r"\d\.\s(.+)", dm_resp)
                 if not options:
-                    options = ["继续探索", "调查角色", "前往未知地点"] if content_lang.startswith("zh") else [
+                    options = ["继续探索", "调查角色", "前往未知地点"] if lang_ui == "中文" else [
                         "Keep exploring", "Investigate a character", "Head to an unknown place"
                     ]
                 st.session_state.adventure["history"].append({"player": player_choice, "dm": dm_resp})

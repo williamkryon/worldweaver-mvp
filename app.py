@@ -257,29 +257,43 @@ with st.sidebar:
     if st.button(TEXT["button_generate_world"][lang_ui]):
         if not idea.strip():
             st.error(TEXT["generate_world_need_idea"][lang_ui])
-        else:
-            with st.spinner(TEXT["generate_world_spinner"][lang_ui]):
-                user_prompt = WORLD_GEN_USER.format(idea=idea, lang=content_lang)
-                out = call_gpt_system(WORLD_GEN_SYSTEM, user_prompt, max_tokens=600)
+    else:
+        with st.spinner(TEXT["generate_world_spinner"][lang_ui]):
+            user_prompt = WORLD_GEN_USER.format(idea=idea, lang=content_lang)
+            out = call_gpt_system(WORLD_GEN_SYSTEM, user_prompt, max_tokens=600)
 
-                # 尝试从文本中提取第一个 JSON 块
-                m = re.search(r"(\{[\s\S]*\})", out)
-                json_text = m.group(1) if m else None
-                if not json_text:
+            # 提取 JSON
+            m = re.search(r"(\{[\s\S]*\})", out)
+            json_text = m.group(1) if m else None
+            if not json_text:
+                data = {"title": world_name, "summary": out}
+            else:
+                try:
+                    data = json.loads(json_text)
+                except Exception:
                     data = {"title": world_name, "summary": out}
-                else:
-                    try:
-                        data = json.loads(json_text)
-                    except Exception:
-                        data = {"title": world_name, "summary": out}
 
-                # 存 DB
-                session = SessionLocal()
-                w = World(name=world_name, data=json.dumps(data, ensure_ascii=False), created_at=time.time())
-                session.add(w)
+            # --- 新增：同名覆盖 ---
+            session = SessionLocal()
+            existing = session.query(World).filter_by(name=world_name).first()
+
+            if existing:
+                existing.data = json.dumps(data, ensure_ascii=False)
+                existing.created_at = time.time()
                 session.commit()
-                session.close()
-                st.success("✅ 世界已生成并保存！" if lang_ui == "中文" else "✅ World generated and saved!")
+            else:
+                new_world = World(
+                    name=world_name,
+                    data=json.dumps(data, ensure_ascii=False),
+                    created_at=time.time()
+                )
+                session.add(new_world)
+                session.commit()
+
+            session.close()
+
+            st.success("世界已生成（同名已覆盖）！" if lang_ui == "中文" 
+                       else "World generated (existing world overwritten)!")
 
 
 # ---------- 主区域：标题 & 简介 ----------
@@ -307,6 +321,15 @@ if sel and sel != new_world_label:
 if world_obj:
     # 世界信息展示
     st.subheader(world_obj.get("title", sel))
+
+    # 删除世界按钮
+    if st.button("删除这个世界" if lang_ui == "中文" else "Delete this world"):
+        session = SessionLocal()
+        session.query(World).filter_by(name=sel).delete()
+        session.commit()
+        session.close()
+        st.success("已删除。" if lang_ui == "中文" else "Deleted.")
+        st.experimental_rerun()
 
     # 简介
     st.markdown(f"**{TEXT['world_summary'][lang_ui]}**")

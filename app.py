@@ -62,11 +62,20 @@ def call_gpt_system(system_prompt, user_prompt, max_tokens=600):
 
 # 生成世界的 prompt 模板
 WORLD_GEN_SYSTEM = "You are an expert worldbuilder for tabletop RPGs. Produce concise structured JSON."
-WORLD_GEN_USER = """Create a compact RPG world given this user idea:
+WORLD_GEN_USER = """Create a compact RPG world based on the user's idea:
 {idea}
 
-Output JSON with keys: title, summary, 3_locations (list), 3_characters (list of dict name+role+short_desc), initial_hook.
-Provide brief creative notes after JSON.
+The user is writing in language: {lang}
+Output **all JSON fields in the same language as the user's idea**.
+
+Output JSON with keys:
+- title
+- summary
+- 3_locations (list of dict: name, description)
+- 3_characters (list of dict: name, role, short_desc)
+- initial_hook
+
+After the JSON, briefly provide creative notes (also in the same language).
 """
 
 DM_SYSTEM = "You are an imaginative RPG Dungeon Master. Keep responses short and reference the world's facts."
@@ -109,7 +118,7 @@ with st.sidebar:
             st.sidebar.error("先写一句话创意。")
         else:
             with st.spinner("生成中……"):
-                user_prompt = WORLD_GEN_USER.format(idea=idea)
+                user_prompt = WORLD_GEN_USER.format(idea=idea, lang=lang)
                 out = call_gpt_system(WORLD_GEN_SYSTEM, user_prompt, max_tokens=600)
                 # 尝试从文本中提取第一个 JSON 块
                 m = re.search(r"(\{[\s\S]*\})", out)
@@ -222,24 +231,32 @@ st.subheader("4) 生成冒险总结与画册")
 
 if st.button("生成冒险总结（文本）"):
     history_text = "\n".join([f"Player: {h['player']}\nDM: {h['dm']}" for h in st.session_state.adventure["history"]])
-    summary_prompt = f"请以英文为主，总结以下冒险为一段叙述风格的冒险回顾，突出情节要点和关键角色：\n\n{history_text}"
+    summary_prompt = f"请总结以下冒险为一段叙述风格的冒险回顾，突出情节要点和关键角色：\n\n{history_text}"
     with st.spinner("生成总结中……"):
         summary = call_gpt_system("You are an expert RPG chronicler who writes evocative summaries.", summary_prompt, max_tokens=400)
     st.text_area("冒险总结", value=summary, height=200)
 
 if st.button("生成并下载画册 (PDF)"):
     from reportlab.lib.utils import simpleSplit
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfbase import pdfmetrics
+
+    # 注册中文字体
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     w, h = A4
-    c.setFont("Helvetica-Bold", 20)
+
+    # 标题字体
+    c.setFont("STSong-Light", 20)
     c.drawCentredString(w/2, h-80, world_obj.get("title","Untitled World"))
-    c.setFont("Helvetica", 12)
+
+    c.setFont("STSong-Light", 12)
 
     # 世界 summary
     c.drawString(50, h-120, "Summary:")
-    summary_lines = simpleSplit(world_obj.get("summary",""), "Helvetica", 12, w-100)
+    summary_lines = simpleSplit(world_obj.get("summary",""), "STSong-Light", 12, w-100)
     y = h-140
     for line in summary_lines:
         c.drawString(50, y, line)
@@ -250,11 +267,11 @@ if st.button("生成并下载画册 (PDF)"):
     y -= 40
     for it in st.session_state.adventure["history"][-10:]:
         for prefix, txt in [("Player: ", it["player"]), ("DM: ", it["dm"])]:
-            lines = simpleSplit(txt, "Helvetica", 12, w-100)
+            lines = simpleSplit(txt, "STSong-Light", 12, w-100)
             for line in lines:
                 if y < 50:
                     c.showPage()
-                    c.setFont("Helvetica", 12)
+                    c.setFont("STSong-Light", 12)
                     y = h-50
                 c.drawString(50, y, prefix + line)
                 prefix = ""  # 只有第一行加前缀

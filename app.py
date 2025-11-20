@@ -129,8 +129,12 @@ TEXT = {
         "English": "Adventure Summary"
     },
     "generate_pdf": {
-        "中文": "生成并下载画册 (PDF)",
-        "English": "Generate & Download Artbook (PDF)"
+        "中文": "生成画册 (PDF)",
+        "English": "Generate Artbook (PDF)"
+    },
+    "download_pdf": {
+        "中文": "下载画册 (PDF)",
+        "English": "Download Artbook (PDF)"
     },
     "no_world_for_export": {
         "中文": "请先选择一个已生成的世界，然后再导出画册。",
@@ -346,15 +350,6 @@ if world_obj:
     st.markdown("---")
     st.subheader(TEXT["section_adventure"][lang_ui])
 
-    # 展示最近的冒险历史
-    if st.session_state.adventure["history"]:
-        st.markdown(f"### {TEXT['adventure_history'][lang_ui]}")
-        for i, it in enumerate(st.session_state.adventure["history"][-10:]):
-            st.markdown(f"**{TEXT['round_label'][lang_ui]} {i+1}**")
-            st.write(f"{TEXT['player_label'][lang_ui]}：", it["player"])
-            st.write(f"{TEXT['dm_label'][lang_ui]}：", it["dm"])
-            st.markdown("---")
-
     # 冒险入口 / 回合逻辑
     # 第一次点击生成开场剧情
     if st.session_state.adventure["round"] == 0:
@@ -363,7 +358,9 @@ if world_obj:
 Generate an opening scene for a short adventure. Provide 3 action options formatted like:
 1. xxx
 2. xxx
-3. xxx"""
+3. xxx
+Do NOT use numbered lists (1., 2., etc.) anywhere else in the story except within these 3 action options lines."""
+            
             with st.spinner("AI 生成中……" if lang_ui == "中文" else "AI thinking…"):
                 dm_resp = call_gpt_system(DM_SYSTEM, prompt, max_tokens=400)
 
@@ -377,6 +374,15 @@ Generate an opening scene for a short adventure. Provide 3 action options format
             st.session_state.adventure["history"].append({"player": "(start)", "dm": dm_resp})
             st.session_state.adventure["options"] = options
             st.session_state.adventure["round"] += 1
+
+    # 展示最近的冒险历史
+    if st.session_state.adventure["history"]:
+        st.markdown(f"### {TEXT['adventure_history'][lang_ui]}")
+        for i, it in enumerate(st.session_state.adventure["history"][-10:]):
+            st.markdown(f"**{TEXT['round_label'][lang_ui]} {i+1}**")
+            st.write(f"{TEXT['player_label'][lang_ui]}：", it["player"])
+            st.write(f"{TEXT['dm_label'][lang_ui]}：", it["dm"])
+            st.markdown("---")
 
     # 显示当前选项按钮
     if st.session_state.adventure["options"]:
@@ -392,7 +398,9 @@ Player chose: {player_choice}
 Generate the next scene with 3 action options formatted like:
 1. xxx
 2. xxx
-3. xxx"""
+3. xxx
+Do NOT use numbered lists (1., 2., etc.) anywhere else in the story except within these 3 action options lines."""
+                
                 with st.spinner("AI 生成中……" if lang_ui == "中文" else "AI thinking…"):
                     dm_resp = call_gpt_system(DM_SYSTEM, prompt, max_tokens=400)
                 options = re.findall(r"\d\.\s(.+)", dm_resp)
@@ -403,6 +411,8 @@ Generate the next scene with 3 action options formatted like:
                 st.session_state.adventure["history"].append({"player": player_choice, "dm": dm_resp})
                 st.session_state.adventure["options"] = options
                 st.session_state.adventure["round"] += 1
+                st.rerun()
+
 else:
     st.info(TEXT["no_world_yet"][lang_ui])
 
@@ -531,7 +541,7 @@ if st.button(TEXT["generate_pdf"][lang_ui]):
         buffer.seek(0)
 
         st.download_button(
-            TEXT["generate_pdf"][lang_ui],
+            TEXT["download_pdf"][lang_ui],
             data=buffer,
             file_name=f"{world_obj.get('title','world')}_book.pdf",
             mime="application/pdf"

@@ -5,6 +5,10 @@ streamlit run app.py
 
 
 LOG：
+11.22.2025
+Encapsulate the file
+Fix bugs
+
 11.20.2025
 Fix the bug which need to click the option button twice
 Fix the history showing bug 

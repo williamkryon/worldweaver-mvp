@@ -1,0 +1,799 @@
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a professional TTRPG Dungeon Master.
+    Your task is to narrate scenes and present clear, meaningful choices.
+
+    General Rules:
+    - Do NOT use speaker labels ("DM:" "Player:" etc.).
+    - Write short, tight narrative paragraphs (2–4 sentences).
+    - Always maintain consistency with world facts and main quest.
+    - Keep pacing dynamic: each round must progress the story.
+    - Avoid lists except for final 3 numbered action options.
+    - Never explain rules or meta-thought.
+    
+
+=== USER PROMPT ===
+
+        Use 中文.
+        Based strictly on this world:
+        "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。"
+
+        Generate the opening scene of a short adventure.
+        Rules:
+        - 2–4 vivid sentences, no more.
+        - Must directly reference the world's summary, locations, or characters.
+        - End with EXACTLY 3 action options in numbered form:
+        1. ...
+        2. ...
+        3. ...
+        
+
+=== GPT RAW OUTPUT ===
+在这座无情的城市中心，街道上弥漫着鲜血和汗水的气味，斗殴声此起彼伏。你目睹了一场激烈的争斗，两个斗士在破旧的广场上狂热地搏斗，围观者们在一旁高喊加油，渴望着血腥的胜利。就在这时，你注意到一个身影悄悄向斗士们的财物伸出手，似乎意图趁乱行窃。
+
+1. 介入斗争，帮助被围攻的斗士。  
+2. 阻止小偷，保护斗士的财物。  
+3. 静观其变，寻找可能的机会。
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a state machine. 
+    Your ONLY job is to output strict JSON based on a template.
+    You MUST NOT output narrative, only fill JSON fields.
+    Never add any text outside the JSON.
+    
+
+=== USER PROMPT ===
+
+            你是这个世界的 DM。根据世界信息与玩家行为生成下一回合事件。
+
+            世界信息：
+            {"title": "战斗都市", "summary": "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。", "lang_ui": "中文", "initial_hook": "你被卷入了一场街头斗争，揭开了隐藏在战斗都市背后的阴谋与秘密。", "main_quest": "{\"main_quest\": \"揭开斗争背后隐藏的阴谋，挑战城市的霸主以夺取荣耀与自由。\"}", "locations": [{"name": "斗殴广场", "description": "这片广场是城市的心脏，随时都能听到拳头碰撞的声音。无数决斗者在此寻求证明自己的机会。", "tags": ["city", "arena"], "danger": 80}, {"name": "废弃工厂", "description": "这里曾是繁忙的工业区，如今却成为了斗士们的训练场所，阴暗潮湿，危机四伏。", "tags": ["ruin", "training"], "danger": 70}], "characters": [{"name": "铁拳阿伦", "role": "斗士", "short_desc": "一名强壮的战士，以他的力量和无畏著称，永远在寻找下一个对手。", "stats": {"trust": 40, "fear": 30, "health": 100, "custom": {}}}, {"name": "影子莉亚", "role": "刺客", "short_desc": "神秘而迅速，莉亚擅长在暗中观察，利用她的速度和灵活性进行致命一击。", "stats": {"trust": 20, "fear": 60, "health": 80, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "industrial", "energy_system": "竞争与斗争驱动的能量", "physics_rules": "常规物理法则，力量和速度决定胜负", "culture": "崇尚力量与勇气，弱肉强食的生存哲学", "world_type": "apocalypse"}, "initial_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "player_stats": {"health": 100, "sanity": 80, "mana": 0, "custom": {"力量": 8, "敏捷": 5, "智力": 4}}, "companions": [], "inventory": {"resources": {}, "items": [], "lore": []}, "world_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "memory": {"visited_locations": [], "met_characters": [], "events_triggered": [], "unlocked_lore": []}, "event_rules": {"max_choices": 5, "allow_free_input": true, "combat_enabled": false}, "player_profile": {"name": "无畏者张", "background": "张是一名在街头长大的孤儿，从小就为了生存而战斗。他的勇气和力量使他在斗殴广场上赢得了声誉，渴望揭开这座城市的秘密。", "profession": "斗士", "role_in_world": "探险家", "traits": ["勇敢", "果断", "坚韧"], "weakness": ["缺乏信任", "容易冲动"]}}
+
+            玩家行为：
+            "介入斗争，帮助被围攻的斗士。  "
+
+            语言要求：
+            - 所有叙事文本必须使用 中文
+            - JSON 的 key 使用英文
+            - 只输出 JSON
+
+            请严格输出以下结构：
+
+            {
+            "dm_text": "NARRATIVE_HERE",
+            "options": ["OP1","OP2","OP3","OP4","OP5"],
+            "health_change": CHANGE_VALUE
+            }
+
+            规则：
+            - health_change 必须是整数（如 -10, -3, +5）
+            - health_change 不能始终为 0，必须反映事件内容
+            - 如果叙事中玩家受伤 → health_change 必须为负数
+            - 如果叙事中玩家恢复 → health_change 为正数
+            - 如果只是轻微动作 → health_change 可为 -1 ~ -3
+            - 不要重复上回合事件
+            - 必须推动剧情
+            - 返回严格 JSON
+            
+
+=== GPT RAW OUTPUT ===
+{
+  "dm_text": "你冲入斗殴广场，看到一个被围攻的斗士，他被三名强壮的对手压制。你迅速选择加入战斗，运用你的力量帮助他。经过激烈的搏斗，你成功击退了对手，但在过程中受到了轻伤，血流不止。被拯救的斗士感激地握住你的手，承诺将与你分享他知道的城市秘密。",
+  "options": ["询问斗士关于城市的秘密", "寻找更多的盟友", "继续战斗", "撤退到安全的地方", "调查斗殴广场"],
+  "health_change": -5
+}
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+95
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a state machine. 
+    Your ONLY job is to output strict JSON based on a template.
+    You MUST NOT output narrative, only fill JSON fields.
+    Never add any text outside the JSON.
+    
+
+=== USER PROMPT ===
+
+            你是这个世界的 DM。根据世界信息与玩家行为生成下一回合事件。
+
+            世界信息：
+            {"title": "战斗都市", "summary": "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。", "lang_ui": "中文", "initial_hook": "你被卷入了一场街头斗争，揭开了隐藏在战斗都市背后的阴谋与秘密。", "main_quest": "{\"main_quest\": \"揭开斗争背后隐藏的阴谋，挑战城市的霸主以夺取荣耀与自由。\"}", "locations": [{"name": "斗殴广场", "description": "这片广场是城市的心脏，随时都能听到拳头碰撞的声音。无数决斗者在此寻求证明自己的机会。", "tags": ["city", "arena"], "danger": 80}, {"name": "废弃工厂", "description": "这里曾是繁忙的工业区，如今却成为了斗士们的训练场所，阴暗潮湿，危机四伏。", "tags": ["ruin", "training"], "danger": 70}], "characters": [{"name": "铁拳阿伦", "role": "斗士", "short_desc": "一名强壮的战士，以他的力量和无畏著称，永远在寻找下一个对手。", "stats": {"trust": 40, "fear": 30, "health": 100, "custom": {}}}, {"name": "影子莉亚", "role": "刺客", "short_desc": "神秘而迅速，莉亚擅长在暗中观察，利用她的速度和灵活性进行致命一击。", "stats": {"trust": 20, "fear": 60, "health": 80, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "industrial", "energy_system": "竞争与斗争驱动的能量", "physics_rules": "常规物理法则，力量和速度决定胜负", "culture": "崇尚力量与勇气，弱肉强食的生存哲学", "world_type": "apocalypse"}, "initial_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "player_stats": {"health": 100, "sanity": 80, "mana": 0, "custom": {"力量": 8, "敏捷": 5, "智力": 4}}, "companions": [], "inventory": {"resources": {}, "items": [], "lore": []}, "world_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "memory": {"visited_locations": [], "met_characters": [], "events_triggered": [], "unlocked_lore": []}, "event_rules": {"max_choices": 5, "allow_free_input": true, "combat_enabled": false}, "player_profile": {"name": "无畏者张", "background": "张是一名在街头长大的孤儿，从小就为了生存而战斗。他的勇气和力量使他在斗殴广场上赢得了声誉，渴望揭开这座城市的秘密。", "profession": "斗士", "role_in_world": "探险家", "traits": ["勇敢", "果断", "坚韧"], "weakness": ["缺乏信任", "容易冲动"]}}
+
+            玩家行为：
+            "询问斗士关于城市的秘密"
+
+            语言要求：
+            - 所有叙事文本必须使用 中文
+            - JSON 的 key 使用英文
+            - 只输出 JSON
+
+            请严格输出以下结构：
+
+            {
+            "dm_text": "NARRATIVE_HERE",
+            "options": ["OP1","OP2","OP3","OP4","OP5"],
+            "health_change": CHANGE_VALUE
+            }
+
+            规则：
+            - health_change 必须是整数（如 -10, -3, +5）
+            - health_change 不能始终为 0，必须反映事件内容
+            - 如果叙事中玩家受伤 → health_change 必须为负数
+            - 如果叙事中玩家恢复 → health_change 为正数
+            - 如果只是轻微动作 → health_change 可为 -1 ~ -3
+            - 不要重复上回合事件
+            - 必须推动剧情
+            - 返回严格 JSON
+            
+
+=== GPT RAW OUTPUT ===
+{
+    "dm_text": "斗士阿伦对你的询问微微一笑，似乎对你有些欣赏。他告诉你，城市的秘密与一位名叫\"黑暗霸主\"的强者有关，传言他掌控着整个斗争的背后。阿伦还提到，只有最强的战士才能接近真相，但在这条路上，你将面临无数的挑战和暗算。此时，周围的气氛变得愈发紧张，似乎有敌人在暗中注视着你。",
+    "options": ["继续询问阿伦更多信息", "前往斗殴广场寻找线索", "探索废弃工厂进行训练", "准备迎接可能的挑战", "离开此地以避免危险"],
+    "health_change": -2
+}
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+98
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+98
+98
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a professional TTRPG Dungeon Master.
+    Your task is to narrate scenes and present clear, meaningful choices.
+
+    General Rules:
+    - Do NOT use speaker labels ("DM:" "Player:" etc.).
+    - Write short, tight narrative paragraphs (2–4 sentences).
+    - Always maintain consistency with world facts and main quest.
+    - Keep pacing dynamic: each round must progress the story.
+    - Avoid lists except for final 3 numbered action options.
+    - Never explain rules or meta-thought.
+    
+
+=== USER PROMPT ===
+
+        Use 中文.
+        Based strictly on this world:
+        "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。"
+
+        Generate the opening scene of a short adventure.
+        Rules:
+        - 2–4 vivid sentences, no more.
+        - Must directly reference the world's summary, locations, or characters.
+        - End with EXACTLY 3 action options in numbered form:
+        1. ...
+        2. ...
+        3. ...
+        
+
+=== GPT RAW OUTPUT ===
+在这座无情的城市中，霓虹灯闪烁着冷酷光芒，街头巷尾充斥着打斗的吼声。你站在一条狭窄的小巷中，眼前是两组对峙的斗士，狂热的人群在一旁欢呼，空气中弥漫着血腥与汗水的味道。随着一声尖锐的哨声，斗争即将开始，生存与荣耀的边界就在此刻模糊不清。你必须迅速选择自己的立场，或是投入战斗，或是寻找机会，或是从旁观战。
+
+1. 投入战斗并挑战其中一位斗士。  
+2. 寻找机会，从人群中获取情报。  
+3. 从小巷撤退，寻找更安全的地方。
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a state machine. 
+    Your ONLY job is to output strict JSON based on a template.
+    You MUST NOT output narrative, only fill JSON fields.
+    Never add any text outside the JSON.
+    
+
+=== USER PROMPT ===
+
+            你是这个世界的 DM。根据世界信息与玩家行为生成下一回合事件。
+
+            世界信息：
+            {"title": "战斗都市", "summary": "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。", "lang_ui": "中文", "initial_hook": "你被卷入了一场街头斗争，揭开了隐藏在战斗都市背后的阴谋与秘密。", "main_quest": "{\"main_quest\": \"揭开斗争背后隐藏的阴谋，挑战城市的霸主以夺取荣耀与自由。\"}", "locations": [{"name": "斗殴广场", "description": "这片广场是城市的心脏，随时都能听到拳头碰撞的声音。无数决斗者在此寻求证明自己的机会。", "tags": ["city", "arena"], "danger": 80}, {"name": "废弃工厂", "description": "这里曾是繁忙的工业区，如今却成为了斗士们的训练场所，阴暗潮湿，危机四伏。", "tags": ["ruin", "training"], "danger": 70}], "characters": [{"name": "铁拳阿伦", "role": "斗士", "short_desc": "一名强壮的战士，以他的力量和无畏著称，永远在寻找下一个对手。", "stats": {"trust": 40, "fear": 30, "health": 100, "custom": {}}}, {"name": "影子莉亚", "role": "刺客", "short_desc": "神秘而迅速，莉亚擅长在暗中观察，利用她的速度和灵活性进行致命一击。", "stats": {"trust": 20, "fear": 60, "health": 80, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "industrial", "energy_system": "竞争与斗争驱动的能量", "physics_rules": "常规物理法则，力量和速度决定胜负", "culture": "崇尚力量与勇气，弱肉强食的生存哲学", "world_type": "apocalypse"}, "initial_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "player_stats": {"health": 100, "sanity": 80, "mana": 0, "custom": {"力量": 8, "敏捷": 5, "智力": 4}}, "companions": [], "inventory": {"resources": {}, "items": [], "lore": []}, "world_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "memory": {"visited_locations": [], "met_characters": [], "events_triggered": [], "unlocked_lore": []}, "event_rules": {"max_choices": 5, "allow_free_input": true, "combat_enabled": false}, "player_profile": {"name": "无畏者张", "background": "张是一名在街头长大的孤儿，从小就为了生存而战斗。他的勇气和力量使他在斗殴广场上赢得了声誉，渴望揭开这座城市的秘密。", "profession": "斗士", "role_in_world": "探险家", "traits": ["勇敢", "果断", "坚韧"], "weakness": ["缺乏信任", "容易冲动"]}}
+
+            玩家行为：
+            "投入战斗并挑战其中一位斗士。  "
+
+            语言要求：
+            - 所有叙事文本必须使用 中文
+            - JSON 的 key 使用英文
+            - 只输出 JSON
+
+            请严格输出以下结构：
+
+            {
+            "dm_text": "NARRATIVE_HERE",
+            "options": ["OP1","OP2","OP3","OP4","OP5"],
+            "health_change": CHANGE_VALUE
+            }
+
+            规则：
+            - health_change 必须是整数（如 -10, -3, +5）
+            - health_change 不能始终为 0，必须反映事件内容
+            - 如果叙事中玩家受伤 → health_change 必须为负数
+            - 如果叙事中玩家恢复 → health_change 为正数
+            - 如果只是轻微动作 → health_change 可为 -1 ~ -3
+            - 不要重复上回合事件
+            - 必须推动剧情
+            - 返回严格 JSON
+            
+
+=== GPT RAW OUTPUT ===
+{
+    "dm_text": "你在斗殴广场遇到了铁拳阿伦，他看起来非常自信并准备迎接挑战。你们之间的气氛紧张，周围的观众开始兴奋地聚集，期待一场精彩的对决。阿伦盯着你，咧嘴一笑，似乎在挑战你的勇气。你感受到一阵压迫感，心跳加速。",
+    "options": ["发起攻击","尝试说服阿伦退出","寻找其他斗士挑战","退后并观察","使用战斗技巧进行反击"],
+    "health_change": -5
+}
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+95
+95
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a state machine. 
+    Your ONLY job is to output strict JSON based on a template.
+    You MUST NOT output narrative, only fill JSON fields.
+    Never add any text outside the JSON.
+    
+
+=== USER PROMPT ===
+
+            你是这个世界的 DM。根据世界信息与玩家行为生成下一回合事件。
+
+            世界信息：
+            {"title": "战斗都市", "summary": "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。", "lang_ui": "中文", "initial_hook": "你被卷入了一场街头斗争，揭开了隐藏在战斗都市背后的阴谋与秘密。", "main_quest": "{\"main_quest\": \"揭开斗争背后隐藏的阴谋，挑战城市的霸主以夺取荣耀与自由。\"}", "locations": [{"name": "斗殴广场", "description": "这片广场是城市的心脏，随时都能听到拳头碰撞的声音。无数决斗者在此寻求证明自己的机会。", "tags": ["city", "arena"], "danger": 80}, {"name": "废弃工厂", "description": "这里曾是繁忙的工业区，如今却成为了斗士们的训练场所，阴暗潮湿，危机四伏。", "tags": ["ruin", "training"], "danger": 70}], "characters": [{"name": "铁拳阿伦", "role": "斗士", "short_desc": "一名强壮的战士，以他的力量和无畏著称，永远在寻找下一个对手。", "stats": {"trust": 40, "fear": 30, "health": 100, "custom": {}}}, {"name": "影子莉亚", "role": "刺客", "short_desc": "神秘而迅速，莉亚擅长在暗中观察，利用她的速度和灵活性进行致命一击。", "stats": {"trust": 20, "fear": 60, "health": 80, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "industrial", "energy_system": "竞争与斗争驱动的能量", "physics_rules": "常规物理法则，力量和速度决定胜负", "culture": "崇尚力量与勇气，弱肉强食的生存哲学", "world_type": "apocalypse"}, "initial_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "player_stats": {"health": 100, "sanity": 80, "mana": 0, "custom": {"力量": 8, "敏捷": 5, "智力": 4}}, "companions": [], "inventory": {"resources": {}, "items": [], "lore": []}, "world_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "memory": {"visited_locations": [], "met_characters": [], "events_triggered": [], "unlocked_lore": []}, "event_rules": {"max_choices": 5, "allow_free_input": true, "combat_enabled": false}, "player_profile": {"name": "无畏者张", "background": "张是一名在街头长大的孤儿，从小就为了生存而战斗。他的勇气和力量使他在斗殴广场上赢得了声誉，渴望揭开这座城市的秘密。", "profession": "斗士", "role_in_world": "探险家", "traits": ["勇敢", "果断", "坚韧"], "weakness": ["缺乏信任", "容易冲动"]}}
+
+            玩家行为：
+            "发起攻击"
+
+            语言要求：
+            - 所有叙事文本必须使用 中文
+            - JSON 的 key 使用英文
+            - 只输出 JSON
+
+            请严格输出以下结构：
+
+            {
+            "dm_text": "NARRATIVE_HERE",
+            "options": ["OP1","OP2","OP3","OP4","OP5"],
+            "health_change": CHANGE_VALUE
+            }
+
+            规则：
+            - health_change 必须是整数（如 -10, -3, +5）
+            - health_change 不能始终为 0，必须反映事件内容
+            - 如果叙事中玩家受伤 → health_change 必须为负数
+            - 如果叙事中玩家恢复 → health_change 为正数
+            - 如果只是轻微动作 → health_change 可为 -1 ~ -3
+            - 不要重复上回合事件
+            - 必须推动剧情
+            - 返回严格 JSON
+            
+
+=== GPT RAW OUTPUT ===
+{
+    "dm_text": "张在斗殴广场上发起了攻击，拳头狠狠地击中了一个对手。对手虽然被打中，但他迅速反击，张感受到一阵剧痛，额头渗出了血。周围的观众为这场战斗欢呼，气氛更加紧张。",
+    "options": ["继续攻击", "尝试闪避", "寻找援助", "退后观察", "使用环境优势"],
+    "health_change": -5
+}
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+95
+95
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a professional TTRPG Dungeon Master.
+    Your task is to narrate scenes and present clear, meaningful choices.
+
+    General Rules:
+    - Do NOT use speaker labels ("DM:" "Player:" etc.).
+    - Write short, tight narrative paragraphs (2–4 sentences).
+    - Always maintain consistency with world facts and main quest.
+    - Keep pacing dynamic: each round must progress the story.
+    - Avoid lists except for final 3 numbered action options.
+    - Never explain rules or meta-thought.
+    
+
+=== USER PROMPT ===
+
+        Use 中文.
+        Based strictly on this world:
+        "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。"
+
+        Generate the opening scene of a short adventure.
+        Rules:
+        - 2–4 vivid sentences, no more.
+        - Must directly reference the world's summary, locations, or characters.
+        - End with EXACTLY 3 action options in numbered form:
+        1. ...
+        2. ...
+        3. ...
+        
+
+=== GPT RAW OUTPUT ===
+在这座无情的城市中，街道上充满了呐喊和拳头相击的声音，空气中弥漫着血腥的气息。你站在一座黑暗的小巷口，前方的斗殴已经引起了周围人群的狂热，热血沸腾的观众正为参与者呐喊助威。随着一声惨叫，胜利者高高举起拳头，宣告着又一次的荣耀，而你知道，唯有在这种无尽的斗争中，才能找到生存的机会。
+
+1. 加入斗殴，争取自己的荣耀。
+2. 在观众中寻找潜在的盟友。
+3. 拐入小巷，寻找隐秘的出路。
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a professional TTRPG world designer.
+    Your job is to produce compact, clean, structured JSON describing a fictional world.
+
+    Rules:
+    - Never include explanations outside the JSON (except brief notes after).
+    - Keep all text concise, vivid, and easy to play in an adventure.
+    - Keep descriptions no longer than 2–3 sentences each.
+    - Do not invent new sections not requested.
+    - Do not add comments, disclaimers, or markdown.
+    
+
+=== USER PROMPT ===
+
+        根据玩家的创意构建一个完整的 RPG 世界。
+
+        玩家创意：
+        战斗都市，所有人都在互相斗殴的城市
+
+        当前 UI 语言：中文
+
+        语言要求（非常重要）：
+        - 如果 UI 语言是 "中文"，则除了 JSON 的 key（如 "title"）必须保持英文外，
+        所有 value（标题、简介、地点名称与描述、角色名称与描述、initial_hook、
+        world_logic 里的 culture 等等）都必须使用自然流畅的中文。
+        - 如果 UI 语言是 "English"，则所有 value 都必须使用自然流畅的英文。
+
+        请输出 JSON，字段如下：
+        
+
+        {
+        "title": "...",
+        "summary": "...",
+        "initial_hook": "...",
+        "locations": [
+            {"name": "...", "description": "...", "tags": ["city","ruin"], "danger": 0-100}
+        ],
+        "characters": [
+            {
+                "name": "...",
+                "role": "...",
+                "short_desc": "...",
+                "stats": {
+                    "trust": 0-100,
+                    "fear": 0-100,
+                    "health": 50-120,
+                    "custom": {}
+                }
+            }
+        ],
+
+        "world_logic": {
+            "allow_magic": true/false,
+            "tech_level": "stone_age | medieval | industrial | modern | sci_fi",
+            "energy_system": "...",
+            "physics_rules": "...",
+            "culture": "...",
+            "world_type": "desert | frost | volcanic | apocalypse | forest | ocean"
+        },
+
+        "initial_state": {
+            "world_heat": 0-100,
+            "tension": 0-100,
+            "magic_density": 0-100,
+            "corruption": 0-100,
+            "radiation": 0-100
+        }
+        }
+
+        要求：
+        - 输出严格 JSON
+        - 不要解释
+        - 内容必须与玩家的创意一致
+        - initial_state 的数值必须由世界逻辑推导
+        
+
+=== GPT RAW OUTPUT ===
+{
+    "title": "战斗都市",
+    "summary": "这是一个无尽斗争的城市，街道上弥漫着战斗的气息，人们为了生存而不断厮杀。",
+    "initial_hook": "在这座城市的中心，传闻有一件强大的武器藏匿，吸引了无数战士前来争夺。",
+    "locations": [
+        {
+            "name": "血腥广场",
+            "description": "这里是城市的心脏，常年进行着激烈的斗殴，地面上满是武器与鲜血。",
+            "tags": ["city", "arena"],
+            "danger": 90
+        },
+        {
+            "name": "无尽巷道",
+            "description": "充满了阴暗和危险，常有不法分子在此潜伏，随时可能遭到袭击。",
+            "tags": ["city", "dangerous"],
+            "danger": 80
+        },
+        {
+            "name": "废弃工厂",
+            "description": "昔日的工业区，如今成为了斗士们的狩猎场，暗藏着无数的陷阱与挑战。",
+            "tags": ["ruin", "dangerous"],
+            "danger": 70
+        }
+    ],
+    "characters": [
+        {
+            "name": "战斗者雷克斯",
+            "role": "斗士",
+            "short_desc": "一位经验丰富的战士，以强大的力量和敏捷闻名。",
+            "stats": {
+                "trust": 30,
+                "fear": 50,
+                "health": 100,
+                "custom": {}
+            }
+        },
+        {
+            "name": "狡诈的盗贼",
+            "role": "刺客",
+            "short_desc": "擅长隐匿与偷袭，善于利用环境来获得优势。",
+            "stats": {
+                "trust": 20,
+                "fear": 70,
+                "health": 80,
+                "custom": {}
+            }
+        },
+        {
+            "name": "武器商人",
+            "role": "商人",
+            "short_desc": "掌握着各种武器和装备，能在战斗中给予战士们重要支持。",
+            "stats": {
+                "trust": 50,
+                "fear": 20,
+                "health": 60,
+                "custom": {}
+            }
+        }
+    ],
+    "world_logic": {
+        "allow_magic": false,
+        "tech_level": "modern",
+        "energy_system": "燃料与机械",
+        "physics_rules": "现实物理",
+        "culture": "强者为尊，斗争是生活的常态。",
+        "world_type": "apocalypse"
+    },
+    "initial_state": {
+        "world_heat": 80,
+        "tension": 90,
+        "magic_density": 0,
+        "corruption": 70,
+        "radiation": 0
+    }
+}
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a professional TTRPG world designer.
+    Your job is to produce compact, clean, structured JSON describing a fictional world.
+
+    Rules:
+    - Never include explanations outside the JSON (except brief notes after).
+    - Keep all text concise, vivid, and easy to play in an adventure.
+    - Keep descriptions no longer than 2–3 sentences each.
+    - Do not invent new sections not requested.
+    - Do not add comments, disclaimers, or markdown.
+    
+
+=== USER PROMPT ===
+
+        为这个世界写一句话主线任务（目标句子，不要剧情）。
+        世界信息：
+        {"title": "战斗都市", "summary": "这是一个无尽斗争的城市，街道上弥漫着战斗的气息，人们为了生存而不断厮杀。", "initial_hook": "在这座城市的中心，传闻有一件强大的武器藏匿，吸引了无数战士前来争夺。", "locations": [{"name": "血腥广场", "description": "这里是城市的心脏，常年进行着激烈的斗殴，地面上满是武器与鲜血。", "tags": ["city", "arena"], "danger": 90}, {"name": "无尽巷道", "description": "充满了阴暗和危险，常有不法分子在此潜伏，随时可能遭到袭击。", "tags": ["city", "dangerous"], "danger": 80}, {"name": "废弃工厂", "description": "昔日的工业区，如今成为了斗士们的狩猎场，暗藏着无数的陷阱与挑战。", "tags": ["ruin", "dangerous"], "danger": 70}], "characters": [{"name": "战斗者雷克斯", "role": "斗士", "short_desc": "一位经验丰富的战士，以强大的力量和敏捷闻名。", "stats": {"trust": 30, "fear": 50, "health": 100, "custom": {}}}, {"name": "狡诈的盗贼", "role": "刺客", "short_desc": "擅长隐匿与偷袭，善于利用环境来获得优势。", "stats": {"trust": 20, "fear": 70, "health": 80, "custom": {}}}, {"name": "武器商人", "role": "商人", "short_desc": "掌握着各种武器和装备，能在战斗中给予战士们重要支持。", "stats": {"trust": 50, "fear": 20, "health": 60, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "modern", "energy_system": "燃料与机械", "physics_rules": "现实物理", "culture": "强者为尊，斗争是生活的常态。", "world_type": "apocalypse"}, "initial_state": {"world_heat": 80, "tension": 90, "magic_density": 0, "corruption": 70, "radiation": 0}}
+        只输出一句话。
+
+=== GPT RAW OUTPUT ===
+{"main_quest": "寻找隐藏在城市中心的强大武器，超越其他战士，成为统治这座斗争之城的强者。"}
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a professional TTRPG world designer.
+    Your job is to produce compact, clean, structured JSON describing a fictional world.
+
+    Rules:
+    - Never include explanations outside the JSON (except brief notes after).
+    - Keep all text concise, vivid, and easy to play in an adventure.
+    - Keep descriptions no longer than 2–3 sentences each.
+    - Do not invent new sections not requested.
+    - Do not add comments, disclaimers, or markdown.
+    
+
+=== USER PROMPT ===
+
+        根据以下世界内容，为这个世界生成一个“玩家角色”（主角）。
+
+        世界信息：
+        {"title": "战斗都市", "summary": "这是一个无尽斗争的城市，街道上弥漫着战斗的气息，人们为了生存而不断厮杀。", "initial_hook": "在这座城市的中心，传闻有一件强大的武器藏匿，吸引了无数战士前来争夺。", "locations": [{"name": "血腥广场", "description": "这里是城市的心脏，常年进行着激烈的斗殴，地面上满是武器与鲜血。", "tags": ["city", "arena"], "danger": 90}, {"name": "无尽巷道", "description": "充满了阴暗和危险，常有不法分子在此潜伏，随时可能遭到袭击。", "tags": ["city", "dangerous"], "danger": 80}, {"name": "废弃工厂", "description": "昔日的工业区，如今成为了斗士们的狩猎场，暗藏着无数的陷阱与挑战。", "tags": ["ruin", "dangerous"], "danger": 70}], "characters": [{"name": "战斗者雷克斯", "role": "斗士", "short_desc": "一位经验丰富的战士，以强大的力量和敏捷闻名。", "stats": {"trust": 30, "fear": 50, "health": 100, "custom": {}}}, {"name": "狡诈的盗贼", "role": "刺客", "short_desc": "擅长隐匿与偷袭，善于利用环境来获得优势。", "stats": {"trust": 20, "fear": 70, "health": 80, "custom": {}}}, {"name": "武器商人", "role": "商人", "short_desc": "掌握着各种武器和装备，能在战斗中给予战士们重要支持。", "stats": {"trust": 50, "fear": 20, "health": 60, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "modern", "energy_system": "燃料与机械", "physics_rules": "现实物理", "culture": "强者为尊，斗争是生活的常态。", "world_type": "apocalypse"}, "initial_state": {"world_heat": 80, "tension": 90, "magic_density": 0, "corruption": 70, "radiation": 0}, "main_quest": "{\"main_quest\": \"寻找隐藏在城市中心的强大武器，超越其他战士，成为统治这座斗争之城的强者。\"}"}
+
+        输出 JSON，字段如下：
+
+        {
+        "player_profile": {
+            "name": "玩家名字（符合世界语言风格，用 中文）",
+            "background": "玩家的身世背景（2-3句话）",
+            "profession": "职业 / 角色类别",
+            "role_in_world": "外来者 | 被选中者 | 探险家 | 流民 | 学者 等",
+            "traits": ["2~4 个个性特质"],
+            "weakness": ["1~2 个弱点"]
+        },
+        "player_stats": {
+            "health": 100,
+            "sanity": 60~120,
+            "mana": 0~100,           // 如果世界逻辑 allow_magic = false 则 mana = 0
+            "custom": {
+                "力量": 1~10,
+                "敏捷": 1~10,
+                "智力": 1~10
+            }
+        }
+        }
+
+        要求：
+        - 所有字段必须符合世界逻辑 world_logic 中的 tech_level / allow_magic / energy_system
+        - 名字、描述都必须使用语言：中文
+        - 只输出 JSON，不要解释
+        
+
+=== GPT RAW OUTPUT ===
+{
+    "player_profile": {
+        "name": "铁拳张",
+        "background": "铁拳张出生于废弃工厂附近，见证了无数斗争的惨烈。为了生存，他练就了一身强大的力量与敏捷，成为了街头斗士中的佼佼者。",
+        "profession": "斗士",
+        "role_in_world": "外来者",
+        "traits": ["坚韧不拔", "勇敢无畏", "灵活应变"],
+        "weakness": ["过于自信", "缺乏信任"]
+    },
+    "player_stats": {
+        "health": 100,
+        "sanity": 80,
+        "mana": 0,
+        "custom": {
+            "力量": 8,
+            "敏捷": 7,
+            "智力": 5
+        }
+    }
+}
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a professional TTRPG Dungeon Master.
+    Your task is to narrate scenes and present clear, meaningful choices.
+
+    General Rules:
+    - Do NOT use speaker labels ("DM:" "Player:" etc.).
+    - Write short, tight narrative paragraphs (2–4 sentences).
+    - Always maintain consistency with world facts and main quest.
+    - Keep pacing dynamic: each round must progress the story.
+    - Avoid lists except for final 3 numbered action options.
+    - Never explain rules or meta-thought.
+    
+
+=== USER PROMPT ===
+
+        Use 中文.
+        Based strictly on this world:
+        "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。"
+
+        Generate the opening scene of a short adventure.
+        Rules:
+        - 2–4 vivid sentences, no more.
+        - Must directly reference the world's summary, locations, or characters.
+        - End with EXACTLY 3 action options in numbered form:
+        1. ...
+        2. ...
+        3. ...
+        
+
+=== GPT RAW OUTPUT ===
+在这座无情的城市的阴暗巷道中，火把摇曳，照亮了争斗的影子。几名身穿破旧皮甲的流浪者正在激烈搏斗，咒骂声与拳击声此起彼伏，周围的人群围观着，赌注在他们之间飞扬。此时，您在角落静静观察，心中思考着如何从这场混乱中获利。 
+
+1. 加入战斗，试图趁机获取一些财富。
+2. 寻找战斗的主导者，试图和他建立联盟。
+3. 从人群中撤回，寻找其他机会。
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a state machine. 
+    Your ONLY job is to output strict JSON based on a template.
+    You MUST NOT output narrative, only fill JSON fields.
+    Never add any text outside the JSON.
+    
+
+=== USER PROMPT ===
+
+            你是这个世界的 DM。根据世界信息与玩家行为生成下一回合事件。
+
+            世界信息：
+            {"title": "战斗都市", "summary": "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。", "lang_ui": "中文", "initial_hook": "你被卷入了一场街头斗争，揭开了隐藏在战斗都市背后的阴谋与秘密。", "main_quest": "{\"main_quest\": \"揭开斗争背后隐藏的阴谋，挑战城市的霸主以夺取荣耀与自由。\"}", "locations": [{"name": "斗殴广场", "description": "这片广场是城市的心脏，随时都能听到拳头碰撞的声音。无数决斗者在此寻求证明自己的机会。", "tags": ["city", "arena"], "danger": 80}, {"name": "废弃工厂", "description": "这里曾是繁忙的工业区，如今却成为了斗士们的训练场所，阴暗潮湿，危机四伏。", "tags": ["ruin", "training"], "danger": 70}], "characters": [{"name": "铁拳阿伦", "role": "斗士", "short_desc": "一名强壮的战士，以他的力量和无畏著称，永远在寻找下一个对手。", "stats": {"trust": 40, "fear": 30, "health": 100, "custom": {}}}, {"name": "影子莉亚", "role": "刺客", "short_desc": "神秘而迅速，莉亚擅长在暗中观察，利用她的速度和灵活性进行致命一击。", "stats": {"trust": 20, "fear": 60, "health": 80, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "industrial", "energy_system": "竞争与斗争驱动的能量", "physics_rules": "常规物理法则，力量和速度决定胜负", "culture": "崇尚力量与勇气，弱肉强食的生存哲学", "world_type": "apocalypse"}, "initial_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "player_stats": {"health": 100, "sanity": 80, "mana": 0, "custom": {"力量": 8, "敏捷": 5, "智力": 4}}, "companions": [], "inventory": {"resources": {}, "items": [], "lore": []}, "world_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "memory": {"visited_locations": [], "met_characters": [], "events_triggered": [], "unlocked_lore": []}, "event_rules": {"max_choices": 5, "allow_free_input": true, "combat_enabled": false}, "player_profile": {"name": "无畏者张", "background": "张是一名在街头长大的孤儿，从小就为了生存而战斗。他的勇气和力量使他在斗殴广场上赢得了声誉，渴望揭开这座城市的秘密。", "profession": "斗士", "role_in_world": "探险家", "traits": ["勇敢", "果断", "坚韧"], "weakness": ["缺乏信任", "容易冲动"]}}
+
+            玩家行为：
+            "加入战斗，试图趁机获取一些财富。"
+
+            语言要求：
+            - 所有叙事文本必须使用 中文
+            - JSON 的 key 使用英文
+            - 只输出 JSON
+
+            请严格输出以下结构：
+
+            {
+            "dm_text": "NARRATIVE_HERE",
+            "options": ["OP1","OP2","OP3","OP4","OP5"],
+            "health_change": CHANGE_VALUE
+            }
+
+            规则：
+            - health_change 必须是整数（如 -10, -3, +5）
+            - health_change 不能始终为 0，必须反映事件内容
+            - 如果叙事中玩家受伤 → health_change 必须为负数
+            - 如果叙事中玩家恢复 → health_change 为正数
+            - 如果只是轻微动作 → health_change 可为 -1 ~ -3
+            - 不要重复上回合事件
+            - 必须推动剧情
+            - 返回严格 JSON
+            
+
+=== GPT RAW OUTPUT ===
+{
+    "dm_text": "你加入了斗殴广场上的战斗，试图在混战中获取一些财富。在激烈的争斗中，你的对手发现了你的意图，向你发起了攻击。你勉强抵挡住他的攻击，但还是受了些伤。尽管如此，你从地上捡到了一些金币，感到稍微富有了一些。",
+    "options": ["继续战斗", "寻找掩护", "尝试与其他斗士合作", "快速撤离", "使用环境帮助自己"],
+    "health_change": -5
+}
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+95
+95
+95
+==================================================
+
+
+==================== NEW CALL ====================
+=== SYSTEM PROMPT ===
+
+    You are a state machine. 
+    Your ONLY job is to output strict JSON based on a template.
+    You MUST NOT output narrative, only fill JSON fields.
+    Never add any text outside the JSON.
+    
+
+=== USER PROMPT ===
+
+            你是这个世界的 DM。根据世界信息与玩家行为生成下一回合事件。
+
+            世界信息：
+            {"title": "战斗都市", "summary": "在这座无情的城市中，生存意味着不断斗争。每个人都为自己的荣耀而战，斗殴成为了日常生活的一部分。", "lang_ui": "中文", "initial_hook": "你被卷入了一场街头斗争，揭开了隐藏在战斗都市背后的阴谋与秘密。", "main_quest": "{\"main_quest\": \"揭开斗争背后隐藏的阴谋，挑战城市的霸主以夺取荣耀与自由。\"}", "locations": [{"name": "斗殴广场", "description": "这片广场是城市的心脏，随时都能听到拳头碰撞的声音。无数决斗者在此寻求证明自己的机会。", "tags": ["city", "arena"], "danger": 80}, {"name": "废弃工厂", "description": "这里曾是繁忙的工业区，如今却成为了斗士们的训练场所，阴暗潮湿，危机四伏。", "tags": ["ruin", "training"], "danger": 70}], "characters": [{"name": "铁拳阿伦", "role": "斗士", "short_desc": "一名强壮的战士，以他的力量和无畏著称，永远在寻找下一个对手。", "stats": {"trust": 40, "fear": 30, "health": 100, "custom": {}}}, {"name": "影子莉亚", "role": "刺客", "short_desc": "神秘而迅速，莉亚擅长在暗中观察，利用她的速度和灵活性进行致命一击。", "stats": {"trust": 20, "fear": 60, "health": 80, "custom": {}}}], "world_logic": {"allow_magic": false, "tech_level": "industrial", "energy_system": "竞争与斗争驱动的能量", "physics_rules": "常规物理法则，力量和速度决定胜负", "culture": "崇尚力量与勇气，弱肉强食的生存哲学", "world_type": "apocalypse"}, "initial_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "player_stats": {"health": 95, "sanity": 80, "mana": 0, "custom": {"力量": 8, "敏捷": 5, "智力": 4}}, "companions": [], "inventory": {"resources": {}, "items": [], "lore": []}, "world_state": {"world_heat": 70, "tension": 90, "magic_density": 0, "corruption": 60, "radiation": 20}, "memory": {"visited_locations": [], "met_characters": [], "events_triggered": [], "unlocked_lore": []}, "event_rules": {"max_choices": 5, "allow_free_input": true, "combat_enabled": false}, "player_profile": {"name": "无畏者张", "background": "张是一名在街头长大的孤儿，从小就为了生存而战斗。他的勇气和力量使他在斗殴广场上赢得了声誉，渴望揭开这座城市的秘密。", "profession": "斗士", "role_in_world": "探险家", "traits": ["勇敢", "果断", "坚韧"], "weakness": ["缺乏信任", "容易冲动"]}}
+
+            玩家行为：
+            "继续战斗"
+
+            语言要求：
+            - 所有叙事文本必须使用 中文
+            - JSON 的 key 使用英文
+            - 只输出 JSON
+
+            请严格输出以下结构：
+
+            {
+            "dm_text": "NARRATIVE_HERE",
+            "options": ["OP1","OP2","OP3","OP4","OP5"],
+            "health_change": CHANGE_VALUE
+            }
+
+            规则：
+            - health_change 必须是整数（如 -10, -3, +5）
+            - health_change 不能始终为 0，必须反映事件内容
+            - 如果叙事中玩家受伤 → health_change 必须为负数
+            - 如果叙事中玩家恢复 → health_change 为正数
+            - 如果只是轻微动作 → health_change 可为 -1 ~ -3
+            - 不要重复上回合事件
+            - 必须推动剧情
+            - 返回严格 JSON
+            
+
+=== GPT RAW OUTPUT ===
+{
+    "dm_text": "在斗殴广场，你与一名对手展开了激烈的战斗。他挥舞着拳头，试图击中你，但你灵活地躲避了他的攻击。随着战斗的进行，你逐渐感到疲惫，尽管如此，你仍然坚持着，准备给予致命一击。",
+    "options": ["继续攻击", "寻找掩护", "使用环境", "尝试谈判", "撤退"],
+    "health_change": -2
+}
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+93
+==================================================
+
+
+==================== HEALTH CHANGE ====================
+93
+93
+93
+==================================================

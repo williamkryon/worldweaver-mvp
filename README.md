@@ -5,6 +5,10 @@ streamlit run app.py
 
 
 LOG：
+11.23.2025
+Improve the llm
+
+
 11.22.2025
 Encapsulate the file
 Fix bugs

@@ -4,17 +4,8 @@ import re
 import time
 import random
 from db import SessionLocal, World
-from llm import call_gpt, WORLD_GEN_SYSTEM, build_world_prompt
-
-# 从 GPT 输出中提取 JSON
-def extract_json(text):
-    m = re.search(r"(\{[\s\S]*\})", text)
-    if not m:
-        return None
-    try:
-        return json.loads(m.group(1))
-    except:
-        return None
+from llm import call_gpt, WORLD_GEN_SYSTEM
+from utils import extract_json
 
 def generate_world(idea, world_name, lang_ui):
     """
@@ -74,7 +65,6 @@ def generate_world(idea, world_name, lang_ui):
         }},
 
         "initial_state": {{
-            "world_heat": 0-100,
             "tension": 0-100,
             "magic_density": 0-100,
             "corruption": 0-100,
@@ -190,10 +180,26 @@ def generate_world(idea, world_name, lang_ui):
         # --- 系统字段（程序初始化，会随着游戏改变） ---
         "player_stats": {
             "health": 100,
-            "mana": 0,
             "sanity": 100,
-            "traits": [],
-            "role": "outsider"
+            "mana": 0,
+            "stamina": 100,
+            "strength": 5,
+            "agility": 5,
+            "intellect": 5,
+            "status_effects": {
+            "bleeding": 0,
+            "tired": 0,
+            "poison": 0
+            }
+        },
+
+        "world_state": {
+            "tension": 20,
+            "corruption": 10,
+            "magic_density": 5,
+            "radiation": 0,
+            "time_of_day": 0,
+            "weather": "clear"
         },
 
         "companions": [],
@@ -204,22 +210,50 @@ def generate_world(idea, world_name, lang_ui):
             "lore": []
         },
 
-        # 动态世界状态（start = initial_state）
-        "world_state": {},
+        "characters": [
+            {
+            "name": "...",
+            "role": "...",
+            "short_desc": "...",
+            "stats": {
+                "trust": 30,
+                "fear": 20,
+                "affinity": 10,
+                "health": 100
+            },
+            "role_flags": {
+                "can_join": False,
+                "is_enemy": False,
+                "quest_giver": False
+            }
+            }
+        ],
 
         "memory": {
             "visited_locations": [],
             "met_characters": [],
             "events_triggered": [],
-            "unlocked_lore": []
+            "unlocked_lore": [],
+            "info_given": [],  # 所有已说过的重要信息
+            "key_clues": []   # 关键线索（系统会自动升级）
         },
 
-        # 游戏规则
-        "event_rules": {
-            "max_choices": 5,
-            "allow_free_input": True,
-            "combat_enabled": False
+        "adventure_state": {
+            "story_progress": 0,
+            "danger_level": 1,
+            "route_flags": {},
+            "story_progress": 0,         # 主线进度 0~100
+            "chapter": 0,                # 当前章节（可选）
+            "final_triggered": False     # 是否已经触发终章事件
+        },
+
+        "inventory": {
+            "resources": {},
+            "items": [],
+            "lore": []
         }
+
+        
     }
 
     # ---------- 4) 覆盖世界内容字段（GPT → template） ----------
@@ -257,6 +291,55 @@ def generate_world(idea, world_name, lang_ui):
     # ---------- 5) 完成 ----------
     return world_template
 
+
+def enrich_npc_personality(npc):
+    """根据角色 role 和 desc 自动扩展 NPC 性格（智能补全层）"""
+
+    role = npc.get("role", "")
+    desc = npc.get("desc", "")
+    traits = npc.get("base_traits", [])[:]    # 复制 GPT 的基础性格
+    speech_style = npc.get("speech_style", "")
+
+    # ---- 职业原型扩展（极少规则，但覆盖99%的情况） ----
+    if any(key in role for key in ["战士", "斗士", "护卫", "勇士"]):
+        traits += ["勇猛", "直接"]
+        speech_style = speech_style or "声音洪亮，直截了当"
+
+    if any(key in role for key in ["刺客", "影", "潜行", "追踪"]):
+        traits += ["冷静", "隐秘"]
+        speech_style = speech_style or "低声、短句、不愿多说"
+
+    if any(key in role for key in ["法师", "巫师", "魔法"]):
+        traits += ["理性", "神秘"]
+        speech_style = speech_style or "语气平淡，带讲解性质"
+
+    if any(key in role for key in ["商人", "交易", "经纪"]):
+        traits += ["圆滑", "机敏"]
+        speech_style = speech_style or "客套、谨慎、观察对方反应"
+
+    if any(key in role for key in ["领袖", "国王", "指挥", "将军"]):
+        traits += ["权威", "果断"]
+        speech_style = speech_style or "稳重、有命令感"
+
+    # ---- 根据描述自动填词 ----
+    if "阴影" in desc or "黑暗" in desc:
+        traits += ["神秘", "危险"]
+
+    if "善良" in desc:
+        traits += ["温和"]
+
+    if "愤怒" in desc or "暴躁" in desc:
+        traits += ["冲动"]
+
+    # ---- 安全兜底 ----
+    if len(traits) < 2:
+        traits.append("中性")
+
+    npc["personality"] = {
+        "traits": list(set(traits)),
+        "speech_style": speech_style or "正常语速、普通语气",
+    }
+    return npc
 
 
 # 保存世界到数据库（同名覆盖）

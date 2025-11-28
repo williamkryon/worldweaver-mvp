@@ -3,6 +3,11 @@ import os
 import json
 from dotenv import load_dotenv
 from openai import OpenAI
+from utils import extract_json
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -80,6 +85,79 @@ EVENT_SYSTEM = """
     Your ONLY job is to output strict JSON based on a template.
     You MUST NOT output narrative, only fill JSON fields.
     Never add any text outside the JSON.
+
+    OPTIONS RULE (非常重要):
+    - 你必须输出一个名为 "options" 的数组。
+    - options 的数量必须精确满足以下规则：
+
+    若 action_type = "combat"：
+        options 必须有 EXACTLY 3 个动作：
+        - 一个进攻类
+        - 一个防御/闪避类
+        - 一个逃跑类
+
+    若 action_type = "exploration"：
+        options 必须 EXACTLY 3 个：观察 / 深入调查 / 移动到新地点
+
+    若 action_type = "social"：
+        options 必须 EXACTLY 3 个：继续提问 / 转换话题 / 结束对话离开
+
+    若 action_type = "stealth"：
+        options 必须 EXACTLY 2 个：继续潜行 / 躲藏静止
+
+    若 action_type = "item"：
+        options 必须 EXACTLY 2 个：使用物品 / 收集并离开
+
+    若 action_type = "move"：
+        options 必须 EXACTLY 3 个：左路线 / 右路线 / 返回安全区
+
+    如果你生成的 options 数量不符合要求，你必须立刻重写正确版本。
+
+    JSON VALIDATION (必须满足):
+    - 你必须输出一个包含以下字段的 JSON 对象：
+        dm_text (string)
+        options (list)
+        health_change (number)
+        world_state_change (object)
+        player_change (object)
+        npc_change (list)
+    - 不得缺少字段，不得多出字段。
+    - 若缺少任何字段，你必须自动重写。
+
+    IMPORTANT FAILSAFE (必须执行):
+    If your output violates ANY rule above — including:
+    - wrong event_type behavior,
+    - wrong chapter behavior,
+    - repeating a clue already in info_given,
+    - creating new lore not supported by the world,
+    - giving information deeper than allowed by info_level,
+    - not using npc personality traits/speech_style,
+    - including narrative outside JSON,
+    - including explanations or apologies,
+    - generating options that do not match action_type,
+
+    Then you MUST discard the attempt and regenerate a CORRECT version.
+    Only output strict JSON that follows ALL rules.
+    Never output meta comments.
+    """
+
+ACTION_PARSER_SYSTEM = """
+    你是动作意图分析器。你的任务是把玩家输入解析成结构化行为。
+
+    你只能输出 JSON，不要解释。
+
+    JSON 模板：
+    {
+    "action_type": "combat | exploration | social | stealth | item | move",
+    "target": "动作对象（如果有）",
+    "intent": "意图（询问 / 调查 / 攻击 / 支援 / 移动 等）",
+    "topic": "主题内容（女巫 / 水晶 / 魔法阵 等）",
+    "risk": "low | medium | high"
+    }
+
+    规则：
+    - action_type 必须从上述六种中选一个。
+    - 若无法判断，则 action_type = "social"。
     """
 
 # --------- 构造 prompt 的 helper 函数 ---------
@@ -94,7 +172,13 @@ def build_world_prompt(idea, lang_ui):
         - title
         - summary
         - 3_locations (list of dict: {{name, description}})
-        - 3_characters (list of dict: {{name, role, short_desc}})
+        - 3_characters (list of dict: {{
+            "name": "角色名",
+            "role": "职业/身份",
+            "desc": "角色描述",
+            "base_traits": [ "简洁的性格形容词，3个以内" ],
+            "speech_style": "一句话描述说话方式"
+        }})
         - initial_hook
 
         All content must be written in {lang_ui}.
@@ -104,16 +188,37 @@ def build_world_prompt(idea, lang_ui):
 
 def build_opening_scene_prompt(world_obj, lang_ui):
     return f"""
-        Use {lang_ui}.
-        Based strictly on this world:
+        使用 {lang_ui}。
+
+        你必须根据这个世界的内容生成一个结构化的开场事件：
+        世界总结：
         {json.dumps(world_obj["summary"], ensure_ascii=False)}
 
-        Generate the opening scene of a short adventure.
-        Rules:
-        - 2–4 vivid sentences, no more.
-        - Must directly reference the world's summary, locations, or characters.
-        - End with EXACTLY 3 action options in numbered form:
-        1. ...
-        2. ...
-        3. ...
-        """
+        地点列表：
+        {json.dumps(world_obj["locations"], ensure_ascii=False)}
+
+        主要角色：
+        {json.dumps(world_obj["characters"], ensure_ascii=False)}
+
+        开场事件规则（务必严格遵守）：
+        - 氛围：2~4 句
+        - 内容必须发生在某个具体地点（地点名需点名）
+        - 至少出现 1 个世界中的角色（体现性格 traits 与 speech_style）
+        - 必须引出一个“开端冲突”（例如：异动、骚乱、失踪、可疑人物）
+        - 不得给任何深层秘密（序章只能浅提示）
+
+        行动选项必须 EXACTLY 3 个，分别对应：
+        1. exploration（调查/观察）
+        2. social（与某个角色交谈）
+        3. move（前往一个新地点）
+
+        选项格式（严格）：
+        1. 文本
+        2. 文本
+        3. 文本
+    """
+
+def parse_action(action_text):
+    prompt = f"玩家行动：{action_text}\n请输出结构化行为 JSON："
+    raw = call_gpt(ACTION_PARSER_SYSTEM, prompt, max_tokens=200)
+    return extract_json(raw)

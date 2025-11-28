@@ -34,13 +34,6 @@ st.set_page_config(page_title="WorldWeaver MVP", layout="wide")
 if "world_obj" not in st.session_state:
     st.session_state.world_obj = None
 
-if "adventure" not in st.session_state:
-    st.session_state.adventure = {
-        "history": [],
-        "options": [],
-        "round": 0
-    }
-
 # ---------- 主区域布局：左主区 + 右侧栏 ----------
 col_main, col_right = st.columns([3,1])
 # ---------- 固定右侧栏 ----------
@@ -132,14 +125,14 @@ with col_main:
         st.write(world_obj.get("summary", ""))
 
         # 地点
-        locations = world_obj.get("3_locations", [])
+        locations = world_obj.get("locations", [])
         if locations:
             st.markdown(f"**{TEXT['world_locations'][lang_ui]}**")
             for loc in locations:
                 st.write(f"- {loc.get('name','')} — {loc.get('description','')}")
 
         # 角色
-        characters = world_obj.get("3_characters", [])
+        characters = world_obj.get("characters", [])
         if characters:
             st.markdown(f"**{TEXT['world_characters'][lang_ui]}**")
             for ch in characters:
@@ -191,25 +184,17 @@ with col_main:
                 st.markdown("---")
 
         # 显示当前选项按钮
-    if st.session_state.adventure["options"]:
-        # ---------- 显示按钮 ----------
-        st.write(TEXT["choose_action"][lang_ui])
-        for opt in st.session_state.adventure["options"]:
-            if st.button(opt):
-                event, updated_world = adv.next_round(opt)
-                # 更新世界数据（侧栏需要）
-                st.session_state.world_obj = updated_world
-                with open("gpt_log.txt", "a", encoding="utf-8") as f:
-                    f.write("\n\n==================== HEALTH CHANGE ====================\n")
-                    f.write(str(updated_world["player_stats"]["health"]) + "\n")
-                    f.write(str(world_obj["player_stats"]["health"]) + "\n")
-                    f.write(str(st.session_state.world_obj["player_stats"]["health"]) + "\n")
-                    f.write("==================================================\n")
-                st.session_state.world_obj['player_stats']["health"] = world_obj["player_stats"]["health"]
-                st.session_state.adventure["history"] = adv.state["history"]
-                st.session_state.adventure["options"] = adv.state["options"]
-                st.session_state.adventure["round"] = adv.state["round"]
-                st.rerun()
+        if st.session_state.adventure["options"]:
+            # ---------- 显示按钮 ----------
+            st.write(TEXT["choose_action"][lang_ui])
+            for opt in st.session_state.adventure["options"]:
+                if st.button(opt):
+                    event = adv.next_round(opt)
+
+                    st.session_state.adventure["history"] = adv.state["history"]
+                    st.session_state.adventure["options"] = adv.state["options"]
+                    st.session_state.adventure["round"] = adv.state["round"]
+                    st.rerun()
 
 
     else:
@@ -261,8 +246,45 @@ with col_main:
 
 # ---------- 侧边栏：属性和物品栏 ----------
 with st.sidebar:
-    if st.session_state.world_obj:
+    world = st.session_state.get("world_obj")
+    if world:
+
+        # --- 玩家属性 ---
         st.subheader("玩家属性")
-        st.write(f"Health: {st.session_state.world_obj['player_stats'].get('health', 100)}")
+        ps = world.get("player_stats", {})
+        st.write(f"Health: {ps.get('health', 100)}")
+        st.write(f"Sanity: {ps.get('sanity', 100)}")
+        st.write(f"Mana: {ps.get('mana', 0)}")
+
+        st.markdown("---")
+
+        # --- 世界状态 ---
+        st.subheader("世界状态")
+        ws = world.get("world_state", {})
+
+        # 昼夜映射（更友好）
+        time_map = {0: "白天", 1: "黄昏", 2: "夜晚"}
+        tod = ws.get("time_of_day", 0)
+        tod_label = time_map.get(tod, tod)
+
+        for key, val in ws.items():
+            if key == "time_of_day":
+                st.write(f"时间: {tod_label}")
+            else:
+                st.write(f"{key}: {val}")
+
+        st.markdown("---")
+        
+        # --- 主线进度 ---
+        st.subheader("主线进度")
+
+        adv = world.get("adventure_state", {})
+        progress = adv.get("story_progress", 0)
+
+        # 显示百分比
+        st.write(f"{progress}%")
+
+        # 原生 Streamlit 进度条
+        st.progress(progress / 100)
 
 session.close()

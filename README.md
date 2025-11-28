@@ -5,9 +5,11 @@ streamlit run app.py
 
 
 LOG：
+11.24.2025
+Fix the key error
+
 11.23.2025
 Improve the llm
-
 
 11.22.2025
 Encapsulate the file

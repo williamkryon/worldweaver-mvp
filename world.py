@@ -7,16 +7,28 @@ from db import SessionLocal, World
 from llm import call_gpt, WORLD_GEN_SYSTEM
 from utils import extract_json
 
+def safe_get(d, key, default):
+    """安全取值，避免 None、空字符串、缺失 key 的问题"""
+    if not isinstance(d, dict):
+        return default
+    val = d.get(key, default)
+    if val in [None, ""]:
+        return default
+    return val
+
+
 def generate_world(idea, world_name, lang_ui):
     """
-    生成完整世界：
-    - GPT 生成世界内容（world_content）
-    - GPT 生成世界逻辑（world_logic）
-    - GPT 生成初始状态（initial_state）
-    - 程序填充系统字段（system fields）
+    优化后的世界生成流程：
+    1) GPT 生成世界结构（世界 + 角色 + 地点 + initial_state）
+    2) GPT 生成 main_quest
+    3) GPT 生成玩家角色（player_profile + player_stats）
+    4) 合并成 world_template 并初始化系统字段
     """
 
-    # ---------- 1) GPT：生成世界内容结构 ----------
+    # ------------------------------
+    # 1. GPT：生成世界基础结构
+    # ------------------------------
     world_prompt = f"""
         根据玩家的创意构建一个完整的 RPG 世界。
 
@@ -25,21 +37,23 @@ def generate_world(idea, world_name, lang_ui):
 
         当前 UI 语言：{lang_ui}
 
-        语言要求（非常重要）：
-        - 如果 UI 语言是 "中文"，则除了 JSON 的 key（如 "title"）必须保持英文外，
-        所有 value（标题、简介、地点名称与描述、角色名称与描述、initial_hook、
-        world_logic 里的 culture 等等）都必须使用自然流畅的中文。
-        - 如果 UI 语言是 "English"，则所有 value 都必须使用自然流畅的英文。
+        语言要求：
+        - UI 为中文 → 所有 value 用自然中文（JSON key 保持英文）
+        - UI 为英文 → 所有 value 用自然英文
 
-        请输出 JSON，字段如下：
-        
+        输出严格 JSON，不要解释：
 
         {{
         "title": "...",
         "summary": "...",
         "initial_hook": "...",
         "locations": [
-            {{"name": "...", "description": "...", "tags": ["city","ruin"], "danger": 0-100}}
+            {{
+                "name": "...",
+                "description": "...",
+                "tags": ["city","ruin"],
+                "danger": 0
+            }}
         ],
         "characters": [
             {{
@@ -47,44 +61,37 @@ def generate_world(idea, world_name, lang_ui):
                 "role": "...",
                 "short_desc": "...",
                 "stats": {{
-                    "trust": 0-100,
-                    "fear": 0-100,
-                    "health": 50-120,
+                    "trust": 0,
+                    "fear": 0,
+                    "health": 100,
                     "custom": {{}}
                 }}
             }}
         ],
 
         "world_logic": {{
-            "allow_magic": true/false,
-            "tech_level": "stone_age | medieval | industrial | modern | sci_fi",
+            "allow_magic": true,
+            "tech_level": "medieval",
             "energy_system": "...",
             "physics_rules": "...",
             "culture": "...",
-            "world_type": "desert | frost | volcanic | apocalypse | forest | ocean"
+            "world_type": "forest"
         }},
 
         "initial_state": {{
-            "tension": 0-100,
-            "magic_density": 0-100,
-            "corruption": 0-100,
-            "radiation": 0-100
+            "tension": 10,
+            "magic_density": 5,
+            "corruption": 2,
+            "radiation": 0
         }}
         }}
+    """
 
-        要求：
-        - 输出严格 JSON
-        - 不要解释
-        - 内容必须与玩家的创意一致
-        - initial_state 的数值必须由世界逻辑推导
-        """
-
-
-    out = call_gpt(WORLD_GEN_SYSTEM, world_prompt, max_tokens=1800)
+    out = call_gpt(WORLD_GEN_SYSTEM, world_prompt, max_tokens=1600)
     data = extract_json(out)
 
-    if data is None:
-        # 最基础兜底，但一般不会触发
+    # 兜底（极少情况）
+    if not data:
         data = {
             "title": world_name,
             "summary": out,
@@ -95,65 +102,132 @@ def generate_world(idea, world_name, lang_ui):
             "initial_state": {}
         }
 
-
-    # ---------- 2) GPT：生成主线一句话 ----------
+    # ------------------------------
+    # 2. GPT：一句话主线
+    # ------------------------------
     quest_prompt = f"""
-        为这个世界写一句话主线任务（目标句子，不要剧情）。
-        世界信息：
-        {json.dumps(data, ensure_ascii=False)}
-        只输出一句话。"""
-    
-    main_quest = call_gpt(WORLD_GEN_SYSTEM, quest_prompt, max_tokens=200)
-    data["main_quest"] = main_quest.strip()
+        根据以下世界内容写一句话主线任务，不要剧情，只要任务目标：
 
-     # ---------- 2.5) GPT：生成玩家角色 ----------
+        {json.dumps(data, ensure_ascii=False)}
+
+        只输出一句话。
+    """
+    main_quest = call_gpt(WORLD_GEN_SYSTEM, quest_prompt, max_tokens=60).strip()
+    data["main_quest"] = main_quest
+
+    # ------------------------------
+    # 2.5 GPT：生成六段剧情节点 story_nodes
+    # ------------------------------
+    node_prompt = f"""
+        你需要为一个短篇冒险生成 6 个固定剧情节点，用于推动完整故事。
+        必须输出严格 JSON，不得换行于 summary 内，不得包含任何回车符或多行文本。
+        每个 summary 必须是单行句子。
+
+        要求：
+        - summary 必须是一句话（不能包含换行、不能包含引号）
+        - options 必须是数组，格式为：{{"text": "xxxx", "goto": "xxxx"}}
+        - 剧情跳转规则必须遵守：
+        setup → first_clue
+        first_clue → twist
+        twist → crisis
+        crisis → pre_finale
+        pre_finale → finale
+        finale → options = []
+
+        世界信息如下：
+        {json.dumps(data, ensure_ascii=False)}
+
+        输出严格 JSON：
+
+        {{
+        "setup": {{
+            "summary": "一句话，不可换行",
+            "options": [{{"text": "选项一句话", "goto": "first_clue"}}]
+        }},
+        "first_clue": {{
+            "summary": "一句话，不可换行",
+            "options": [{{"text": "选项一句话", "goto": "twist"}}]
+        }},
+        "twist": {{
+            "summary": "一句话，不可换行",
+            "options": [{{"text": "选项一句话", "goto": "crisis"}}]
+        }},
+        "crisis": {{
+            "summary": "一句话，不可换行",
+            "options": [{{"text": "选项一句话", "goto": "pre_finale"}}]
+        }},
+        "pre_finale": {{
+            "summary": "一句话，不可换行",
+            "options": [{{"text": "选项一句话", "goto": "finale"}}]
+        }},
+        "finale": {{
+            "summary": "一句话，不可换行",
+            "options": []
+        }}
+        }}
+        """
+
+    node_raw = call_gpt(WORLD_GEN_SYSTEM, node_prompt, max_tokens=800)
+    story_nodes = extract_json(node_raw) or {}
+
+    if not story_nodes or "setup" not in story_nodes:
+        story_nodes = {
+            "setup": {"summary": "故事开始于玩家进入此世界。", "options": [{"text": "继续前进", "goto": "first_clue"}]},
+            "first_clue": {"summary": "玩家发现一个神秘的线索。", "options": [{"text": "继续调查", "goto": "twist"}]},
+            "twist": {"summary": "玩家发现一个隐藏的真相。", "options": [{"text": "面对真相", "goto": "crisis"}]},
+            "crisis": {"summary": "危机加深，风险上升。", "options": [{"text": "寻找突破口", "goto": "pre_finale"}]},
+            "pre_finale": {"summary": "最终决战前的准备。", "options": [{"text": "进入最终地点", "goto": "finale"}]},
+            "finale": {"summary": "故事的结局揭晓。", "options": []}
+        }
+
+    data["story_nodes"] = story_nodes
+
+    # ------------------------------
+    # 3. GPT：生成玩家角色
+    # ------------------------------
     player_prompt = f"""
-        根据以下世界内容，为这个世界生成一个“玩家角色”（主角）。
+        根据以下世界内容，为这个世界生成一个玩家角色。
 
         世界信息：
         {json.dumps(data, ensure_ascii=False)}
 
-        输出 JSON，字段如下：
+        输出严格 JSON：
 
         {{
         "player_profile": {{
-            "name": "玩家名字（符合世界语言风格，用 {lang_ui}）",
-            "background": "玩家的身世背景（2-3句话）",
-            "profession": "职业 / 角色类别",
-            "role_in_world": "外来者 | 被选中者 | 探险家 | 流民 | 学者 等",
-            "traits": ["2~4 个个性特质"],
-            "weakness": ["1~2 个弱点"]
+            "name": "玩家名字 ({lang_ui})",
+            "background": "2-3 句背景",
+            "profession": "...",
+            "role_in_world": "...",
+            "traits": ["..."],
+            "weakness": ["..."]
         }},
         "player_stats": {{
             "health": 100,
-            "sanity": 60~120,
-            "mana": 0~100,           // 如果世界逻辑 allow_magic = false 则 mana = 0
+            "sanity": 80,
+            "mana": 0,
             "custom": {{
-                "力量": 1~10,
-                "敏捷": 1~10,
-                "智力": 1~10
+                "力量": 5,
+                "敏捷": 5,
+                "智力": 5
             }}
         }}
         }}
+    """
 
-        要求：
-        - 所有字段必须符合世界逻辑 world_logic 中的 tech_level / allow_magic / energy_system
-        - 名字、描述都必须使用语言：{lang_ui}
-        - 只输出 JSON，不要解释
-        """
     player_out = call_gpt(WORLD_GEN_SYSTEM, player_prompt, max_tokens=800)
     player_data = extract_json(player_out)
 
-    if player_data is None:
-        # 基础兜底
+    # 玩家角色兜底
+    if not player_data:
         player_data = {
             "player_profile": {
-                "name": "无名旅人",
-                "background": "一个没有明确过去的旅行者，刚刚来到这个世界。",
+                "name": "无名旅人" if lang_ui == "中文" else "Nameless Wanderer",
+                "background": "一个没有明确过去的旅人。",
                 "profession": "wanderer",
                 "role_in_world": "outsider",
-                "traits": ["好奇"],
-                "weakness": ["天真"]
+                "traits": ["curious"],
+                "weakness": ["naive"]
             },
             "player_stats": {
                 "health": 100,
@@ -163,133 +237,80 @@ def generate_world(idea, world_name, lang_ui):
             }
         }
 
-    # ---------- 3) 构造 world_template（程序字段 + 内容字段容器） ----------
+    # ------------------------------
+    # 4. 构造最终 world_template（无重复字段）
+    # ------------------------------
+    initial_state = safe_get(data, "initial_state", {})
+
     world_template = {
-
-        # --- 世界内容字段（GPT 覆盖） ---
-        "title": "",
-        "summary": "",
+        # --- GPT world data ---
+        "title": safe_get(data, "title", world_name),
+        "summary": safe_get(data, "summary", ""),
+        "initial_hook": safe_get(data, "initial_hook", ""),
+        "main_quest": safe_get(data, "main_quest", ""),
+        "story_nodes": safe_get(data, "story_nodes", {}),
         "lang_ui": lang_ui,
-        "initial_hook": "",
-        "main_quest": "",
-        "locations": [],
-        "characters": [],
-        "world_logic": {},
-        "initial_state": {},
 
-        # --- 系统字段（程序初始化，会随着游戏改变） ---
-        "player_stats": {
-            "health": 100,
-            "sanity": 100,
-            "mana": 0,
-            "stamina": 100,
-            "strength": 5,
-            "agility": 5,
-            "intellect": 5,
-            "status_effects": {
-            "bleeding": 0,
-            "tired": 0,
-            "poison": 0
-            }
-        },
+        "locations": safe_get(data, "locations", []),
+        "characters": safe_get(data, "characters", []),
+        "world_logic": safe_get(data, "world_logic", {}),
 
+        "story_nodes": safe_get(data, "story_nodes", {}),
+
+        # --- initial & world_state 分离 ---
+        "initial_state": initial_state,
         "world_state": {
-            "tension": 20,
-            "corruption": 10,
-            "magic_density": 5,
-            "radiation": 0,
+            "tension": initial_state.get("tension", 10),
+            "magic_density": initial_state.get("magic_density", 5),
+            "corruption": initial_state.get("corruption", 0),
+            "radiation": initial_state.get("radiation", 0),
             "time_of_day": 0,
             "weather": "clear"
         },
 
-        "companions": [],
+        # --- player data ---
+        "player_profile": safe_get(player_data, "player_profile", {}),
+        "player_stats": player_data.get("player_stats", {}),
 
-        "inventory": {
-            "resources": {},
-            "items": [],
-            "lore": []
-        },
+        # --- story ---
+        "story_beats": data.get("story_beats", {}),
 
-        "characters": [
-            {
-            "name": "...",
-            "role": "...",
-            "short_desc": "...",
-            "stats": {
-                "trust": 30,
-                "fear": 20,
-                "affinity": 10,
-                "health": 100
-            },
-            "role_flags": {
-                "can_join": False,
-                "is_enemy": False,
-                "quest_giver": False
-            }
-            }
-        ],
+        # --- inventory ---
+        "inventory": {"resources": {}, "items": [], "lore": []},
 
+        # --- adventure / memory ---
         "memory": {
             "visited_locations": [],
             "met_characters": [],
             "events_triggered": [],
             "unlocked_lore": [],
-            "info_given": [],  # 所有已说过的重要信息
-            "key_clues": []   # 关键线索（系统会自动升级）
+            "info_given": [],
+            "key_clues": []
         },
 
         "adventure_state": {
             "story_progress": 0,
-            "danger_level": 1,
-            "route_flags": {},
-            "story_progress": 0,         # 主线进度 0~100
-            "chapter": 0,                # 当前章节（可选）
-            "final_triggered": False     # 是否已经触发终章事件
+            "chapter": 0,
+            "final_triggered": False
         },
 
-        "inventory": {
-            "resources": {},
-            "items": [],
-            "lore": []
-        }
-
-        
+        # 系统字段：同伴
+        "companions": []
     }
 
-    # ---------- 4) 覆盖世界内容字段（GPT → template） ----------
-    world_template["title"] = data.get("title", world_name)
-    world_template["summary"] = data.get("summary", "")
-    world_template["initial_hook"] = data.get("initial_hook", "")
-    world_template["main_quest"] = data.get("main_quest", "")
-
-    # 地点
-    if "locations" in data:
-        world_template["locations"] = data["locations"]
-
-    # 角色（GPT 已经生成 stats，无需程序加默认 stats）
-    if "characters" in data:
-        world_template["characters"] = data["characters"]
-
-    # 世界逻辑
-    world_template["world_logic"] = data.get("world_logic", {})
-
-    # 世界初始状态
-    world_template["initial_state"] = data.get("initial_state", {})
-
-    # 初始 world_state = initial_state（动态）
-    world_template["world_state"] = dict(world_template["initial_state"])
-
-     # ---------- 4.1 合并玩家信息到 world_template ----------
-    world_template["player_profile"] = player_data.get("player_profile", {})
-
-    # 玩家 stats（如果世界没有魔法 → mana = 0）
-    stats = player_data.get("player_stats", {})
+    # 如果世界没有魔法，强制 mana = 0
     if not world_template["world_logic"].get("allow_magic", False):
-        stats["mana"] = 0
-    world_template["player_stats"] = stats
+        world_template["player_stats"]["mana"] = 0
 
-    # ---------- 5) 完成 ----------
+    with open("gpt_log.txt", "a", encoding="utf-8") as f:
+        f.write("\n\n==================== FIRST CHECK ====================\n")
+        f.write(json.dumps(data["story_nodes"], ensure_ascii=False, indent=2))
+        f.write("\n==================================================\n")
+        f.write(json.dumps(world_template["story_nodes"], ensure_ascii=False, indent=2))
+        f.write("\n==================================================\n")
+
     return world_template
+
 
 
 def enrich_npc_personality(npc):

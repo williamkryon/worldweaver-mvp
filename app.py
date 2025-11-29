@@ -151,10 +151,8 @@ with col_main:
         
         adv = AdventureManager(world_obj, lang_ui, st.session_state)
 
-        recent = history[-3:]  # 最近三回合。可改成 history 全部
-        history_text = ""
-        for h in recent:
-            history_text += f"Player: {h['player']}\nDM: {h['dm']}\n\n"
+        # 取最近三回合历史文本
+        history_text = adv.recent_history_text(n=3)
 
         # 冒险入口 / 回合逻辑
         # 第一次点击生成开场剧情
